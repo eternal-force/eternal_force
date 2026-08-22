@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}帳號管理{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="row-between">
+    <h2 style="margin:0;">帳號管理</h2>
+    <a href="{{ url_for('accounts.new_coach') }}" class="btn btn-primary">+ 新增教練帳號</a>
+  </div>
+
+  <form method="get" class="filter-bar card">
+    <div>
+      <label for="search">依帳號或姓名搜尋</label>
+      <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入帳號或姓名">
+    </div>
+    <button type="submit" class="btn btn-primary">搜尋</button>
+  </form>
+
+  {% set role_label = {"admin": "管理者", "coach": "教練", "student": "學生"} %}
+  {% set status_label = {"pending": "待驗證", "active": "啟用中", "disabled": "已停用"} %}
+
+  {% if accounts|length == 0 %}
+    <div class="empty-state">
+      <p>{% if search %}沒有符合條件的帳號。{% else %}目前還沒有任何帳號。{% endif %}</p>
+    </div>
+  {% else %}
+  <div class="card">
+    <div class="record-list">
+      <div class="record-row record-row-header account-row">
+        <div>帳號</div>
+        <div>姓名</div>
+        <div>角色</div>
+        <div>狀態</div>
+        <div>操作</div>
+      </div>
+      {% for u in accounts %}
+        <div class="record-row account-row">
+          <div><span class="field-label-mobile">帳號</span>{{ u.username }}</div>
+          <div><span class="field-label-mobile">姓名</span>{{ u.name or '-' }}</div>
+          <div>
+            <span class="field-label-mobile">角色</span>
+            {% if current_user.role == 'admin' and u.role != 'admin' %}
+              <form method="post" action="{{ url_for('accounts.change_role', user_id=u.id) }}" class="role-form">
+                {{ delete_form.hidden_tag() }}
+                <select name="target_role">
+                  <option value="student" {% if u.role == 'student' %}selected{% endif %}>學生</option>
+                  <option value="coach" {% if u.role == 'coach' %}selected{% endif %}>教練</option>
+                </select>
+                <button type="submit" class="btn btn-sm">更新</button>
+              </form>
+            {% else %}
+              {{ role_label.get(u.role, u.role) }}
+            {% endif %}
+          </div>
+          <div>
+            <span class="field-label-mobile">狀態</span>
+            {% if u.status == 'active' %}
+              <span class="badge badge-success">{{ status_label.get(u.status, u.status) }}</span>
+            {% elif u.status == 'pending' %}
+              <span class="badge badge-warning">{{ status_label.get(u.status, u.status) }}</span>
+            {% else %}
+              <span class="badge badge-danger">{{ status_label.get(u.status, u.status) }}</span>
+            {% endif %}
+          </div>
+          <div class="record-row-actions">
+            <a class="btn btn-sm" href="{{ url_for('accounts.view_account', user_id=u.id) }}">檢視</a>
+            {% if u.status == 'pending' %}
+              <form method="post" action="{{ url_for('accounts.verify', user_id=u.id) }}">
+                {{ delete_form.hidden_tag() }}
+                <button type="submit" class="btn btn-sm btn-primary">驗證</button>
+              </form>
+              <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}"
+                    data-confirm="確定要拒絕並停用「{{ u.username }}」的註冊申請嗎？">
+                {{ delete_form.hidden_tag() }}
+                <input type="hidden" name="target_status" value="disabled">
+                <button type="submit" class="btn btn-sm btn-danger">拒絕</button>
+              </form>
+            {% elif u.role != 'admin' and u.status == 'active' %}
+              <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}"
+                    data-confirm="確定要停用帳號「{{ u.username }}」嗎？">
+                {{ delete_form.hidden_tag() }}
+                <input type="hidden" name="target_status" value="disabled">
+                <button type="submit" class="btn btn-sm">停用</button>
+              </form>
+            {% elif u.role != 'admin' and u.status == 'disabled' %}
+              <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}">
+                {{ delete_form.hidden_tag() }}
+                <input type="hidden" name="target_status" value="active">
+                <button type="submit" class="btn btn-sm">重新啟用</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

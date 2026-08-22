@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ student.name }}{% endblock %}
+{% block content %}
+<div class="stack">
+  <a class="back-link" href="{{ url_for('students.list_students') }}">&larr; 回學生列表</a>
+
+  <div class="card">
+    <div class="row-between">
+      <div>
+        <h2 style="margin:0 0 4px;">{{ student.name }}
+          {% if student.status == 'active' %}
+            <span class="badge badge-success">在籍</span>
+          {% else %}
+            <span class="badge badge-muted">停用</span>
+          {% endif %}
+        </h2>
+        <p class="muted" style="margin:0;">
+          {% if student.phone %}{{ student.phone }}　{% endif %}
+          {% if student.email %}{{ student.email }}{% endif %}
+        </p>
+      </div>
+      {% if current_user.role != 'student' %}
+      <div class="btn-group">
+        <a class="btn btn-sm" href="{{ url_for('students.edit_student', student_id=student.id) }}">編輯資料</a>
+        <form method="post" action="{{ url_for('students.change_status', student_id=student.id) }}"
+              data-confirm="確定要{{ '停用' if student.status == 'active' else '重新啟用' }}這位學生嗎？">
+          {{ delete_form.hidden_tag() }}
+          <button type="submit" class="btn btn-sm">{{ '停用' if student.status == 'active' else '重新啟用' }}</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if student.notes %}<p class="muted" style="margin-top:10px;">備註：{{ student.notes }}</p>{% endif %}
+
+    <div class="stats" style="margin-top:14px;">
+      <div>
+        <div class="stat-num {% if summary.remaining < 0 %}negative{% endif %}">{{ summary.remaining }}</div>
+        <div class="stat-label">剩餘堂數</div>
+      </div>
+      <div>
+        <div class="stat-num">{{ summary.total_attended }}</div>
+        <div class="stat-label">已上堂數</div>
+      </div>
+      <div>
+        <div class="stat-num">{{ summary.total_purchased }}</div>
+        <div class="stat-label">總購買堂數</div>
+      </div>
+    </div>
+    {% if summary.remaining < 0 %}
+      <p class="field-error" style="margin-top:8px;">剩餘堂數為負數，代表已超上，請儘快提醒補購。</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="row-between">
+      <h3 style="margin:0;">購買紀錄</h3>
+      {% if current_user.role != 'student' %}
+      <a class="btn btn-sm btn-primary" href="{{ url_for('purchases.new_purchase', student_id=student.id) }}">+ 新增購買紀錄</a>
+      {% endif %}
+    </div>
+    {% if student.purchase_records|length == 0 %}
+      <p class="muted">尚無購買紀錄。</p>
+    {% else %}
+      <div class="record-list" style="margin-top:10px;">
+        {% for p in student.purchase_records %}
+          <div class="record-row">
+            <div><span class="field-label-mobile">購買日期</span>{{ p.purchase_date.strftime('%Y-%m-%d') }}</div>
+            <div><span class="field-label-mobile">堂數</span>{{ p.quantity }} 堂</div>
+            <div><span class="field-label-mobile">金額</span>{{ p.price if p.price is not none else '-' }}</div>
+            <div><span class="field-label-mobile">備註</span>{{ p.notes or '-' }}</div>
+            {% if current_user.role != 'student' %}
+            <div class="record-row-actions">
+              <a class="btn btn-sm" href="{{ url_for('purchases.edit_purchase', purchase_id=p.id) }}">編輯</a>
+              <form method="post" action="{{ url_for('purchases.delete_purchase', purchase_id=p.id) }}" data-confirm="確定要刪除這筆購買紀錄嗎？此動作無法復原。">
+                {{ delete_form.hidden_tag() }}
+                <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="row-between">
+      <h3 style="margin:0;">上課紀錄</h3>
+      {% if current_user.role != 'student' %}
+      <a class="btn btn-sm btn-primary" href="{{ url_for('classes.new_class_record', student_id=student.id) }}">+ 新增上課紀錄</a>
+      {% endif %}
+    </div>
+    {% if student.class_records|length == 0 %}
+      <p class="muted">尚無上課紀錄。</p>
+    {% else %}
+      <div class="record-list" style="margin-top:10px;">
+        {% for c in student.class_records %}
+          <div class="record-row">
+            <div><span class="field-label-mobile">到課日期</span>{{ c.class_date.strftime('%Y-%m-%d') }}</div>
+            <div><span class="field-label-mobile">時間</span>{{ c.class_time.strftime('%H:%M') }}</div>
+            <div><span class="field-label-mobile">時長</span>{{ (c.duration_minutes ~ ' 分鐘') if c.duration_minutes else '-' }}</div>
+            <div><span class="field-label-mobile">備註</span>{{ c.notes or '-' }}</div>
+            {% if c.exercises %}
+              <div class="record-row-detail" style="grid-column: 1 / -1;">
+                <span class="field-label-mobile">訓練菜單</span>
+                {% for ex in c.exercises %}<span class="badge badge-muted">{{ ex.name }}</span>{% endfor %}
+              </div>
+            {% endif %}
+            {% if current_user.role != 'student' %}
+            <div class="record-row-actions">
+              <a class="btn btn-sm" href="{{ url_for('classes.edit_class_record', record_id=c.id) }}">編輯</a>
+              <form method="post" action="{{ url_for('classes.delete_class_record', record_id=c.id) }}" data-confirm="確定要刪除這筆上課紀錄嗎？此動作無法復原。">
+                {{ delete_form.hidden_tag() }}
+                <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

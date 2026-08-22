@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}找不到頁面{% endblock %}
+{% block content %}
+<div class="empty-state">
+  <h2>404 - 找不到頁面</h2>
+  <p>您要找的頁面不存在，或已被移除。</p>
+  <a class="btn btn-primary" href="{{ url_for('students.list_students') }}">回到學生列表</a>
+</div>
+{% endblock %}

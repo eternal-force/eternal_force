@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'new' %}新增學生{% else %}編輯學生{% endif %}{% endblock %}
+{% block content %}
+<div class="stack">
+  {% if mode == 'edit' %}
+    <a class="back-link" href="{{ url_for('students.student_detail', student_id=student.id) }}">&larr; 回學生明細</a>
+  {% else %}
+    <a class="back-link" href="{{ url_for('students.list_students') }}">&larr; 回學生列表</a>
+  {% endif %}
+
+  <div class="card">
+    <h2 style="margin-top:0;">{% if mode == 'new' %}新增學生{% else %}編輯學生資料{% endif %}</h2>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="stack">
+        <div>
+          {{ form.name.label }}
+          {{ form.name(autofocus=true) }}
+          {% for e in form.name.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div class="form-grid cols-2">
+          <div>
+            {{ form.phone.label }}
+            {{ form.phone() }}
+            {% for e in form.phone.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.email.label }}
+            {{ form.email(type="email") }}
+            {% for e in form.email.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+
+        <div class="form-grid cols-3">
+          <div>
+            {{ form.birthday.label }}
+            {{ form.birthday(type="date") }}
+            {% for e in form.birthday.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.gender.label }}
+            {{ form.gender() }}
+          </div>
+          <div>
+            {{ form.enrollment_date.label }}
+            {{ form.enrollment_date(type="date") }}
+            {% for e in form.enrollment_date.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+
+        <div>
+          {{ form.status.label }}
+          {{ form.status() }}
+        </div>
+
+        <div>
+          {{ form.notes.label }}
+          {{ form.notes(rows=3) }}
+          {% for e in form.notes.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary">{% if mode == 'new' %}建立學生{% else %}儲存變更{% endif %}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

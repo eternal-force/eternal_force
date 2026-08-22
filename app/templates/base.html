@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}eternal_force{% endblock %} | eternal_force 健身教學管理</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    {% if current_user.is_authenticated %}
+    <header class="app-header">
+      <div class="app-header-bar">
+        <a class="app-title" href="{{ url_for('students.list_students') }}">
+          <img class="app-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="恆力體能">
+          <p class="subtitle">恆力體能</p>
+        </a>
+        <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="app-nav" aria-label="開啟選單">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="app-nav" id="app-nav">
+          {% if current_user.role == 'student' %}
+            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('students.') %} active{% endif %}" href="{{ url_for('students.list_students') }}">我的紀錄</a>
+          {% else %}
+            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('students.') %} active{% endif %}" href="{{ url_for('students.list_students') }}">學生列表</a>
+            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('exercises.') %} active{% endif %}" href="{{ url_for('exercises.list_exercises') }}">訓練項目</a>
+            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('accounts.') %} active{% endif %}" href="{{ url_for('accounts.list_accounts') }}">
+              帳號管理{% if pending_account_count > 0 %}<span class="nav-badge">{{ pending_account_count }}</span>{% endif %}
+            </a>
+          {% endif %}
+          <form action="{{ url_for('auth.logout') }}" method="post" class="logout-form">
+            {{ logout_form.hidden_tag() }}
+            <button type="submit" class="app-nav-link app-nav-link-btn">登出（{{ current_user.username }}）</button>
+          </form>
+        </nav>
+      </div>
+    </header>
+    {% endif %}
+
+    <main class="app-main">
+      {% include "partials/_flash.html" %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

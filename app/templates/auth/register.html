@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}註冊{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <img class="auth-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="恆力體能">
+    <p class="muted auth-subtitle">學生註冊</p>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="stack">
+        <div>
+          {{ form.username.label }}
+          {{ form.username(autocomplete="username", autofocus=true) }}
+          {% for e in form.username.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div class="form-grid cols-2">
+          <div>
+            {{ form.password.label }}
+            {{ form.password(type="password", autocomplete="new-password") }}
+            {% for e in form.password.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.confirm_password.label }}
+            {{ form.confirm_password(type="password", autocomplete="new-password") }}
+            {% for e in form.confirm_password.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+
+        <div>
+          {{ form.name.label }}
+          {{ form.name() }}
+          {% for e in form.name.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div class="form-grid cols-2">
+          <div>
+            {{ form.phone.label }}
+            {{ form.phone() }}
+            {% for e in form.phone.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.birthday.label }}
+            {{ form.birthday(type="date") }}
+            {% for e in form.birthday.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+
+        <div>
+          {{ form.gender.label }}
+          {{ form.gender() }}
+          {% for e in form.gender.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div>
+          {{ form.goal.label }}
+          {{ form.goal(rows=3, placeholder="例如：增肌、減脂、改善體態、提升體能...") }}
+          {% for e in form.goal.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">註冊</button>
+      </div>
+    </form>
+    <p class="muted auth-subtitle" style="margin-top:14px;">
+      已經有帳號？<a href="{{ url_for('auth.login') }}">登入</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

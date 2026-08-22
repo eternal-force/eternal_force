@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}系統發生錯誤{% endblock %}
+{% block content %}
+<div class="empty-state">
+  <h2>500 - 系統發生錯誤</h2>
+  <p>伺服器處理時發生問題，請稍後再試；若持續發生請聯繫系統管理員。</p>
+  <a class="btn btn-primary" href="{{ url_for('students.list_students') }}">回到學生列表</a>
+</div>
+{% endblock %}

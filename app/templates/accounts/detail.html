@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ account.username }}{% endblock %}
+{% block content %}
+<div class="stack">
+  <a class="back-link" href="{{ url_for('accounts.list_accounts') }}">&larr; 回帳號管理</a>
+
+  {% set role_label = {"admin": "管理者", "coach": "教練", "student": "學生"} %}
+  {% set status_label = {"pending": "待驗證", "active": "啟用中", "disabled": "已停用"} %}
+  {% set gender_label = {"male": "男", "female": "女", "other": "其他"} %}
+
+  <div class="card">
+    <div class="row-between">
+      <h2 style="margin:0 0 4px;">{{ account.username }}</h2>
+      {% if account.status == 'active' %}
+        <span class="badge badge-success">{{ status_label.get(account.status, account.status) }}</span>
+      {% elif account.status == 'pending' %}
+        <span class="badge badge-warning">{{ status_label.get(account.status, account.status) }}</span>
+      {% else %}
+        <span class="badge badge-danger">{{ status_label.get(account.status, account.status) }}</span>
+      {% endif %}
+    </div>
+
+    <div class="form-grid cols-2" style="margin-top:14px;">
+      <div>
+        <div class="muted" style="font-size:0.78rem;">角色</div>
+        <div>{{ role_label.get(account.role, account.role) }}</div>
+      </div>
+      <div>
+        <div class="muted" style="font-size:0.78rem;">姓名</div>
+        <div>{{ account.name or '-' }}</div>
+      </div>
+      <div>
+        <div class="muted" style="font-size:0.78rem;">手機</div>
+        <div>{{ account.phone or '-' }}</div>
+      </div>
+      <div>
+        <div class="muted" style="font-size:0.78rem;">生日</div>
+        <div>{{ account.birthday.strftime('%Y-%m-%d') if account.birthday else '-' }}</div>
+      </div>
+      <div>
+        <div class="muted" style="font-size:0.78rem;">性別</div>
+        <div>{{ gender_label.get(account.gender, '-') }}</div>
+      </div>
+      <div>
+        <div class="muted" style="font-size:0.78rem;">建立時間</div>
+        <div>{{ account.created_at.strftime('%Y-%m-%d %H:%M') if account.created_at else '-' }}</div>
+      </div>
+    </div>
+
+    {% if account.goal %}
+      <div style="margin-top:14px;">
+        <div class="muted" style="font-size:0.78rem;">期望運動達成的效益</div>
+        <div>{{ account.goal }}</div>
+      </div>
+    {% endif %}
+
+    {% if account.student %}
+      <div style="margin-top:14px;">
+        <div class="muted" style="font-size:0.78rem;">對應學生名冊</div>
+        <div><a href="{{ url_for('students.student_detail', student_id=account.student.id) }}">{{ account.student.name }}</a></div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

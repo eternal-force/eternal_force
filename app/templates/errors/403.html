@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}權限不足{% endblock %}
+{% block content %}
+<div class="empty-state">
+  <h2>403 - 權限不足</h2>
+  <p>您的帳號沒有權限存取這個頁面。</p>
+  <a class="btn btn-primary" href="{{ url_for('students.list_students') }}">回到首頁</a>
+</div>
+{% endblock %}

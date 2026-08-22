@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'new' %}新增訓練項目{% else %}編輯訓練項目{% endif %}{% endblock %}
+{% block content %}
+<div class="stack">
+  <a class="back-link" href="{{ url_for('exercises.list_exercises') }}">&larr; 回訓練項目清單</a>
+
+  <div class="card">
+    <h2 style="margin-top:0;">{% if mode == 'new' %}新增訓練項目{% else %}編輯訓練項目{% endif %}</h2>
+    <datalist id="exercise-category-options">
+      {% for c in categories %}
+        <option value="{{ c }}">
+      {% endfor %}
+    </datalist>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="stack">
+        <div class="form-grid cols-2">
+          <div>
+            {{ form.category.label }}
+            {{ form.category(list="exercise-category-options") }}
+            {% for e in form.category.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.name.label }}
+            {{ form.name() }}
+            {% for e in form.name.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary">{% if mode == 'new' %}新增{% else %}儲存變更{% endif %}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

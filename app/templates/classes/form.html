@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'new' %}新增上課紀錄{% else %}編輯上課紀錄{% endif %}{% endblock %}
+{% block content %}
+<div class="stack">
+  <a class="back-link" href="{{ url_for('students.student_detail', student_id=student.id) }}">&larr; 回 {{ student.name }} 的明細頁</a>
+
+  <div class="card">
+    <h2 style="margin-top:0;">{% if mode == 'new' %}為 {{ student.name }} 新增上課紀錄{% else %}編輯上課紀錄{% endif %}</h2>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="stack">
+        <div class="form-grid cols-2">
+          <div>
+            {{ form.class_date.label }}
+            {{ form.class_date(type="date") }}
+            {% for e in form.class_date.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.class_time.label }}
+            {{ form.class_time(type="time") }}
+            {% for e in form.class_time.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+        <div>
+          {{ form.duration_minutes.label }}
+          {{ form.duration_minutes(type="number", min="1", step="1") }}
+          {% for e in form.duration_minutes.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+        <div>
+          <label style="font-weight:600;">訓練菜單</label>
+          <p class="muted" style="margin:4px 0 10px;">可從訓練項目清單選擇分類與項目，或直接輸入清單中沒有的自訂項目（選填）。</p>
+
+          <script type="application/json" id="exercise-catalog-map">{{ catalog_map|tojson }}</script>
+
+          <div id="exercise-rows" class="stack">
+            {% for row in exercise_rows %}
+              <div class="exercise-entry-row">
+                <div>
+                  <span class="field-label-mobile">分類</span>
+                  <select name="exercise_category" class="exercise-category-select">
+                    <option value="">請選擇分類</option>
+                    {% for c in categories %}
+                      <option value="{{ c }}" {% if row.category == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <span class="field-label-mobile">訓練項目</span>
+                  <input
+                    type="text"
+                    name="exercise_name"
+                    value="{{ row.name }}"
+                    list="exercise-name-options-{{ loop.index0 }}"
+                    placeholder="選擇分類後可帶出項目，或輸入自訂項目"
+                    autocomplete="off"
+                  >
+                  <datalist id="exercise-name-options-{{ loop.index0 }}">
+                    {% for n in catalog_map.get(row.category, []) %}
+                      <option value="{{ n }}">
+                    {% endfor %}
+                  </datalist>
+                </div>
+                <button type="button" class="btn btn-sm btn-danger exercise-row-remove">移除</button>
+              </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-sm" id="add-exercise-row" style="margin-top:8px;">+ 新增訓練項目</button>
+
+          <template id="exercise-row-template">
+            <div class="exercise-entry-row">
+              <div>
+                <span class="field-label-mobile">分類</span>
+                <select name="exercise_category" class="exercise-category-select">
+                  <option value="">請選擇分類</option>
+                  {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                </select>
+              </div>
+              <div>
+                <span class="field-label-mobile">訓練項目</span>
+                <input type="text" name="exercise_name" placeholder="選擇分類後可帶出項目，或輸入自訂項目" autocomplete="off">
+                <datalist></datalist>
+              </div>
+              <button type="button" class="btn btn-sm btn-danger exercise-row-remove">移除</button>
+            </div>
+          </template>
+        </div>
+        <div>
+          {{ form.notes.label }}
+          {{ form.notes(rows=3) }}
+          {% for e in form.notes.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary">{% if mode == 'new' %}新增{% else %}儲存變更{% endif %}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

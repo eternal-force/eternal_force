@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}學生列表{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="row-between">
+    <h2 style="margin:0;">學生列表</h2>
+    <a href="{{ url_for('students.new_student') }}" class="btn btn-primary">+ 新增學生</a>
+  </div>
+
+  <form method="get" class="filter-bar card">
+    <div>
+      <label for="search">依姓名搜尋</label>
+      <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入學生姓名">
+    </div>
+    <div>
+      <label for="status">在籍狀態</label>
+      <select id="status" name="status">
+        <option value="" {% if not status %}selected{% endif %}>全部</option>
+        <option value="active" {% if status == 'active' %}selected{% endif %}>在籍</option>
+        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>停用</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">搜尋 / 篩選</button>
+  </form>
+
+  {% if students|length == 0 %}
+    <div class="empty-state">
+      <p>{% if search or status %}沒有符合條件的學生。{% else %}目前還沒有學生資料，點選「新增學生」開始建立。{% endif %}</p>
+    </div>
+  {% else %}
+    <div class="student-grid">
+      {% for s in students %}
+        <a href="{{ url_for('students.student_detail', student_id=s.id) }}" class="student-card">
+          <div class="row-between" style="margin-bottom:6px; gap:8px;">
+            <h3 style="margin:0;">{{ s.name }}</h3>
+            {% if s.status == 'active' %}
+              <span class="badge badge-success">在籍</span>
+            {% else %}
+              <span class="badge badge-muted">停用</span>
+            {% endif %}
+          </div>
+          <div class="stats">
+            <div>
+              <div class="stat-num {% if s.remaining < 0 %}negative{% endif %}">{{ s.remaining }}</div>
+              <div class="stat-label">剩餘堂數</div>
+            </div>
+            <div>
+              <div class="stat-num">{{ s.total_attended }}</div>
+              <div class="stat-label">已上堂數</div>
+            </div>
+            <div>
+              <div class="stat-num">{{ s.total_purchased }}</div>
+              <div class="stat-label">購買堂數</div>
+            </div>
+          </div>
+          {% if s.remaining < 0 %}
+            <div style="margin-top:10px;"><span class="badge badge-danger">已超上，請儘快補購</span></div>
+          {% endif %}
+        </a>
+      {% endfor %}
+    </div>
+
+    {% if pagination.pages > 1 %}
+      <div class="btn-group" style="justify-content:center;">
+        {% if pagination.has_prev %}
+          <a class="btn btn-sm" href="{{ url_for('students.list_students', page=pagination.prev_num, search=search, status=status) }}">上一頁</a>
+        {% endif %}
+        <span class="muted" style="align-self:center;">第 {{ pagination.page }} / {{ pagination.pages }} 頁</span>
+        {% if pagination.has_next %}
+          <a class="btn btn-sm" href="{{ url_for('students.list_students', page=pagination.next_num, search=search, status=status) }}">下一頁</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

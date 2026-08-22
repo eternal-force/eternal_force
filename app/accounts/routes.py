@@ -1,0 +1,97 @@
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+
+from .. import services
+from ..auth.decorators import roles_required
+from ..extensions import db
+from ..forms import CoachForm, DeleteConfirmForm
+from ..models import User
+
+bp = Blueprint("accounts", __name__, url_prefix="/accounts")
+
+
+def _get_user_or_404(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+    return user
+
+
+@bp.route("/")
+@roles_required("admin", "coach")
+def list_accounts():
+    search = request.args.get("search", "").strip()
+    accounts = services.list_accounts(search=search)
+    return render_template(
+        "accounts/list.html",
+        accounts=accounts,
+        search=search,
+        delete_form=DeleteConfirmForm(),
+    )
+
+
+@bp.route("/<int:user_id>")
+@roles_required("admin", "coach")
+def view_account(user_id):
+    user = _get_user_or_404(user_id)
+    return render_template("accounts/detail.html", account=user)
+
+
+@bp.route("/<int:user_id>/verify", methods=["POST"])
+@roles_required("admin", "coach")
+def verify(user_id):
+    user = _get_user_or_404(user_id)
+    form = DeleteConfirmForm()
+    if form.validate_on_submit():
+        services.verify_account(user)
+        flash(f"帳號「{user.username}」已驗證啟用。", "success")
+    return redirect(url_for("accounts.list_accounts"))
+
+
+@bp.route("/<int:user_id>/status", methods=["POST"])
+@roles_required("admin", "coach")
+def change_status(user_id):
+    user = _get_user_or_404(user_id)
+    target_status = request.form.get("target_status")
+    form = DeleteConfirmForm()
+    if form.validate_on_submit():
+        try:
+            services.set_account_status(user, target_status)
+            label = "停用" if target_status == "disabled" else "啟用"
+            flash(f"已{label}帳號「{user.username}」。", "success")
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
+    return redirect(url_for("accounts.list_accounts"))
+
+
+@bp.route("/<int:user_id>/role", methods=["POST"])
+@roles_required("admin")
+def change_role(user_id):
+    user = _get_user_or_404(user_id)
+    target_role = request.form.get("target_role")
+    form = DeleteConfirmForm()
+    if form.validate_on_submit():
+        try:
+            services.set_account_role(user, target_role)
+            label = {"coach": "教練", "student": "學生"}.get(target_role, target_role)
+            flash(f"已將帳號「{user.username}」的角色調整為{label}。", "success")
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
+    return redirect(url_for("accounts.list_accounts"))
+
+
+@bp.route("/new-coach", methods=["GET", "POST"])
+@roles_required("admin", "coach")
+def new_coach():
+    form = CoachForm()
+    if form.validate_on_submit():
+        user = services.create_coach_account(
+            {
+                "username": form.username.data,
+                "password": form.password.data,
+                "name": form.name.data,
+                "phone": form.phone.data,
+            }
+        )
+        flash(f"教練帳號「{user.username}」已建立並啟用。", "success")
+        return redirect(url_for("accounts.list_accounts"))
+    return render_template("accounts/new_coach.html", form=form)

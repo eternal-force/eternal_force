@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}訓練項目清單{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="row-between">
+    <h2 style="margin:0;">訓練項目清單</h2>
+    <a href="{{ url_for('exercises.new_exercise') }}" class="btn btn-primary">+ 新增項目</a>
+  </div>
+
+  <datalist id="exercise-category-options">
+    {% for c in categories %}
+      <option value="{{ c }}">
+    {% endfor %}
+  </datalist>
+
+  <form method="get" class="filter-bar card">
+    <div>
+      <label for="search">依項目名稱搜尋</label>
+      <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入關鍵字搜尋">
+    </div>
+    <div>
+      <label for="category">分類</label>
+      <select id="category" name="category">
+        <option value="" {% if not category %}selected{% endif %}>全部分類</option>
+        {% for c in categories %}
+          <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary">搜尋 / 篩選</button>
+  </form>
+
+  {% if groups|length == 0 %}
+    <div class="empty-state">
+      <p>{% if search or category %}找不到符合的項目。{% else %}目前還沒有訓練項目，點選「新增項目」開始建立。{% endif %}</p>
+    </div>
+  {% else %}
+    {% for cat, items in groups %}
+      <div class="card stack">
+        <div class="row-between">
+          <span class="badge badge-muted">{{ cat }}</span>
+          <span class="muted">{{ items|length }} 個項目</span>
+        </div>
+        <div class="record-list">
+          {% for item in items %}
+            <div class="record-row exercise-row">
+              <div>{{ item.name }}</div>
+              <div class="record-row-actions">
+                <a class="btn btn-sm" href="{{ url_for('exercises.edit_exercise', item_id=item.id) }}">編輯</a>
+                <form method="post" action="{{ url_for('exercises.delete_exercise', item_id=item.id) }}"
+                      data-confirm="確定要刪除項目「{{ item.name }}」嗎？">
+                  {{ delete_form.hidden_tag() }}
+                  <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

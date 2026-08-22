@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}新增教練帳號{% endblock %}
+{% block content %}
+<div class="stack">
+  <a class="back-link" href="{{ url_for('accounts.list_accounts') }}">&larr; 回帳號管理</a>
+
+  <div class="card">
+    <h2 style="margin-top:0;">新增教練帳號</h2>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="stack">
+        <div>
+          {{ form.username.label }}
+          {{ form.username(autocomplete="username", autofocus=true) }}
+          {% for e in form.username.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+        <div>
+          {{ form.password.label }}
+          {{ form.password(type="password", autocomplete="new-password") }}
+          {% for e in form.password.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+        <div class="form-grid cols-2">
+          <div>
+            {{ form.name.label }}
+            {{ form.name() }}
+            {% for e in form.name.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.phone.label }}
+            {{ form.phone() }}
+            {% for e in form.phone.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary">建立教練帳號</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
