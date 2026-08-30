@@ -52,15 +52,15 @@
     {% endif %}
   </div>
 
-  <div class="card">
-    <div class="row-between">
-      <h3 style="margin:0;">購買紀錄</h3>
+  <details class="card">
+    <summary class="row-between card-section-summary">
+      <h3 style="margin:0;"><span class="section-toggle-arrow">&#9656;</span> 購買紀錄</h3>
       {% if current_user.role != 'student' %}
       <a class="btn btn-sm btn-primary" href="{{ url_for('purchases.new_purchase', student_id=student.id) }}">+ 新增購買紀錄</a>
       {% endif %}
-    </div>
+    </summary>
     {% if student.purchase_records|length == 0 %}
-      <p class="muted">尚無購買紀錄。</p>
+      <p class="muted" style="margin-top:10px;">尚無購買紀錄。</p>
     {% else %}
       <div class="record-list" style="margin-top:10px;">
         {% for p in student.purchase_records %}
@@ -82,44 +82,64 @@
         {% endfor %}
       </div>
     {% endif %}
-  </div>
+  </details>
 
-  <div class="card">
-    <div class="row-between">
-      <h3 style="margin:0;">上課紀錄</h3>
+  <details class="card" open>
+    <summary class="row-between card-section-summary">
+      <h3 style="margin:0;"><span class="section-toggle-arrow">&#9656;</span> 上課紀錄</h3>
       {% if current_user.role != 'student' %}
       <a class="btn btn-sm btn-primary" href="{{ url_for('classes.new_class_record', student_id=student.id) }}">+ 新增上課紀錄</a>
       {% endif %}
-    </div>
+    </summary>
     {% if student.class_records|length == 0 %}
-      <p class="muted">尚無上課紀錄。</p>
+      <p class="muted" style="margin-top:10px;">尚無上課紀錄。</p>
     {% else %}
       <div class="record-list" style="margin-top:10px;">
+        <div class="record-row record-row-header class-row">
+          <div>上課日期<span class="muted" style="font-weight:400; font-size:0.78rem; margin-left:8px;">(點擊展開詳細內容)</span></div>
+        </div>
         {% for c in student.class_records %}
-          <div class="record-row">
-            <div><span class="field-label-mobile">到課日期</span>{{ c.class_date.strftime('%Y-%m-%d') }}</div>
-            <div><span class="field-label-mobile">時間</span>{{ c.class_time.strftime('%H:%M') }}</div>
-            <div><span class="field-label-mobile">時長</span>{{ (c.duration_minutes ~ ' 分鐘') if c.duration_minutes else '-' }}</div>
-            <div><span class="field-label-mobile">備註</span>{{ c.notes or '-' }}</div>
-            {% if c.exercises %}
-              <div class="record-row-detail" style="grid-column: 1 / -1;">
-                <span class="field-label-mobile">訓練菜單</span>
-                {% for ex in c.exercises %}<span class="badge badge-muted">{{ ex.name }}</span>{% endfor %}
+          <details class="record-row class-row">
+            <summary class="class-row-summary">
+              <span class="exercise-toggle-arrow">&#9656;</span>
+              <span>{{ c.class_date.strftime('%Y-%m-%d') }}</span>
+            </summary>
+            <div class="class-row-body">
+              <div><span class="class-field-label">上課時間</span>{{ c.class_time.strftime('%H:%M') }}</div>
+              <div><span class="class-field-label">上課教練</span>{{ c.coach.name if c.coach else '-' }}</div>
+              <div>
+                <span class="class-field-label">上課內容</span>
+                {% if c.exercises %}
+                  <ul class="exercise-list">
+                    {% for ex in c.exercises %}
+                      {% set reps_part = [] %}
+                      {% if ex.sets is not none %}{% set _ = reps_part.append(ex.sets ~ '組') %}{% endif %}
+                      {% if ex.reps is not none %}{% set _ = reps_part.append(ex.reps ~ '次') %}{% endif %}
+                      {% set metrics = [] %}
+                      {% if reps_part %}{% set _ = metrics.append(reps_part|join(' x ')) %}{% endif %}
+                      {% if ex.weight_kg is not none %}{% set _ = metrics.append(ex.weight_kg ~ 'kg') %}{% endif %}
+                      <li>{{ ex.name }}{% if metrics %}（{{ metrics|join(' · ') }}）{% endif %}{% if ex.note %} — {{ ex.note }}{% endif %}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="muted">-</span>
+                {% endif %}
               </div>
-            {% endif %}
-            {% if current_user.role != 'student' %}
-            <div class="record-row-actions">
-              <a class="btn btn-sm" href="{{ url_for('classes.edit_class_record', record_id=c.id) }}">編輯</a>
-              <form method="post" action="{{ url_for('classes.delete_class_record', record_id=c.id) }}" data-confirm="確定要刪除這筆上課紀錄嗎？此動作無法復原。">
-                {{ delete_form.hidden_tag() }}
-                <button type="submit" class="btn btn-sm btn-danger">刪除</button>
-              </form>
+              <div><span class="class-field-label">備註</span>{{ c.notes or '-' }}</div>
+              {% if current_user.role != 'student' %}
+              <div class="record-row-actions">
+                <a class="btn btn-sm" href="{{ url_for('classes.edit_class_record', record_id=c.id) }}">編輯</a>
+                <form method="post" action="{{ url_for('classes.delete_class_record', record_id=c.id) }}" data-confirm="確定要刪除這筆上課紀錄嗎？此動作無法復原。">
+                  {{ delete_form.hidden_tag() }}
+                  <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                </form>
+              </div>
+              {% endif %}
             </div>
-            {% endif %}
-          </div>
+          </details>
         {% endfor %}
       </div>
     {% endif %}
-  </div>
+  </details>
 </div>
 {% endblock %}

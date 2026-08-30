@@ -22,66 +22,29 @@
           </div>
         </div>
         <div>
-          {{ form.duration_minutes.label }}
-          {{ form.duration_minutes(type="number", min="1", step="1") }}
-          {% for e in form.duration_minutes.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          {{ form.coach_id.label }}
+          {{ form.coach_id() }}
+          {% for e in form.coach_id.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
         </div>
         <div>
           <label style="font-weight:600;">訓練菜單</label>
-          <p class="muted" style="margin:4px 0 10px;">可從訓練項目清單選擇分類與項目，或直接輸入清單中沒有的自訂項目（選填）。</p>
+          <p class="muted" style="margin:4px 0 10px;">可從訓練項目清單選擇分類與項目，或直接輸入清單中沒有的自訂項目；公斤數/組數/次數/備註皆選填。項目填好後可按「收合」整理畫面。</p>
 
           <script type="application/json" id="exercise-catalog-map">{{ catalog_map|tojson }}</script>
 
           <div id="exercise-rows" class="stack">
             {% for row in exercise_rows %}
-              <div class="exercise-entry-row">
-                <div>
-                  <span class="field-label-mobile">分類</span>
-                  <select name="exercise_category" class="exercise-category-select">
-                    <option value="">請選擇分類</option>
-                    {% for c in categories %}
-                      <option value="{{ c }}" {% if row.category == c %}selected{% endif %}>{{ c }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div>
-                  <span class="field-label-mobile">訓練項目</span>
-                  <input
-                    type="text"
-                    name="exercise_name"
-                    value="{{ row.name }}"
-                    list="exercise-name-options-{{ loop.index0 }}"
-                    placeholder="選擇分類後可帶出項目，或輸入自訂項目"
-                    autocomplete="off"
-                  >
-                  <datalist id="exercise-name-options-{{ loop.index0 }}">
-                    {% for n in catalog_map.get(row.category, []) %}
-                      <option value="{{ n }}">
-                    {% endfor %}
-                  </datalist>
-                </div>
-                <button type="button" class="btn btn-sm btn-danger exercise-row-remove">移除</button>
-              </div>
+              {% with row_index = loop.index0 %}
+                {% include "classes/_exercise_row.html" %}
+              {% endwith %}
             {% endfor %}
           </div>
           <button type="button" class="btn btn-sm" id="add-exercise-row" style="margin-top:8px;">+ 新增訓練項目</button>
 
           <template id="exercise-row-template">
-            <div class="exercise-entry-row">
-              <div>
-                <span class="field-label-mobile">分類</span>
-                <select name="exercise_category" class="exercise-category-select">
-                  <option value="">請選擇分類</option>
-                  {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-                </select>
-              </div>
-              <div>
-                <span class="field-label-mobile">訓練項目</span>
-                <input type="text" name="exercise_name" placeholder="選擇分類後可帶出項目，或輸入自訂項目" autocomplete="off">
-                <datalist></datalist>
-              </div>
-              <button type="button" class="btn btn-sm btn-danger exercise-row-remove">移除</button>
-            </div>
+            {% with row = {"category": "", "name": "", "weight_kg": "", "sets": "", "reps": "", "note": ""}, row_index = none %}
+              {% include "classes/_exercise_row.html" %}
+            {% endwith %}
           </template>
         </div>
         <div>

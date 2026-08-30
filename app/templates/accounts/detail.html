@@ -60,6 +60,61 @@
         <div><a href="{{ url_for('students.student_detail', student_id=account.student.id) }}">{{ account.student.name }}</a></div>
       </div>
     {% endif %}
+
+    {% if current_user.role == 'admin' %}
+      <div class="btn-group" style="margin-top:16px;">
+        {% if account.role != 'admin' %}
+          <button type="button" class="btn btn-sm" data-toggle-target="role-form-{{ account.id }}">變更角色</button>
+        {% endif %}
+        <button type="button" class="btn btn-sm" data-open-dialog="password-dialog-{{ account.id }}">變更密碼</button>
+      </div>
+
+      {% if account.role != 'admin' %}
+        <div id="role-form-{{ account.id }}" class="inline-reveal" hidden>
+          <form method="post" action="{{ url_for('accounts.change_role', user_id=account.id) }}" class="role-form">
+            {{ delete_form.hidden_tag() }}
+            <select name="target_role">
+              <option value="student" {% if account.role == 'student' %}selected{% endif %}>學生</option>
+              <option value="coach" {% if account.role == 'coach' %}selected{% endif %}>教練</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary">確認變更</button>
+          </form>
+        </div>
+      {% endif %}
+
+      <dialog id="password-dialog-{{ account.id }}" class="app-dialog">
+        <form method="post" action="{{ url_for('accounts.change_password', user_id=account.id) }}">
+          {{ password_form.hidden_tag() }}
+          <h3 style="margin:0 0 14px;">變更密碼 — {{ account.username }}</h3>
+          <div class="stack">
+            <div>
+              {{ password_form.new_password.label }}
+              <div class="password-field">
+                {{ password_form.new_password(autocomplete="new-password") }}
+                <button type="button" class="password-toggle" data-visible="false" aria-label="顯示密碼">
+                  <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.6 21.6 0 0 1 5.06-6.06M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.6 21.6 0 0 1-2.61 3.94M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+            </div>
+            <div>
+              {{ password_form.confirm_password.label }}
+              <div class="password-field">
+                {{ password_form.confirm_password(autocomplete="new-password") }}
+                <button type="button" class="password-toggle" data-visible="false" aria-label="顯示密碼">
+                  <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.6 21.6 0 0 1 5.06-6.06M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.6 21.6 0 0 1-2.61 3.94M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="btn-group" style="margin-top:16px; justify-content:flex-end;">
+            <button type="button" class="btn btn-sm" data-close-dialog>取消</button>
+            <button type="submit" class="btn btn-sm btn-primary">確認變更密碼</button>
+          </div>
+        </form>
+      </dialog>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

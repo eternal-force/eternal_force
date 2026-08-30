@@ -2,6 +2,8 @@
 確保新增/編輯/刪除與堂數統計規則只實作一份，不會兩邊邏輯兜不起來。
 """
 
+from decimal import Decimal, InvalidOperation
+
 from flask import abort
 
 from .extensions import db
@@ -169,9 +171,38 @@ def get_class_record_or_404(record_id):
     return record
 
 
+def _parse_optional_int(value, label):
+    if isinstance(value, str):
+        value = value.strip()
+    if value in (None, ""):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValidationError(f"{label}必須是整數", field="exercises")
+    if parsed < 0:
+        raise ValidationError(f"{label}不能是負數", field="exercises")
+    return parsed
+
+
+def _parse_optional_decimal(value, label):
+    if isinstance(value, str):
+        value = value.strip()
+    if value in (None, ""):
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValidationError(f"{label}必須是數字", field="exercises")
+    if parsed < 0:
+        raise ValidationError(f"{label}不能是負數", field="exercises")
+    return parsed
+
+
 def _build_class_exercises(entries):
-    """entries: [{'category', 'name'}, ...]。名稱空白的列視為未填寫的空白列，直接略過；
-    有名稱就必須有分類(可從訓練項目清單選，也可以是自訂、清單裡沒有的名稱)。
+    """entries: [{'category', 'name', 'weight_kg', 'sets', 'reps', 'note'}, ...]。
+    名稱空白的列視為未填寫的空白列，直接略過；有名稱就必須有分類(可從訓練項目清單選，
+    也可以是自訂、清單裡沒有的名稱)。公斤數/組數/次數為選填，但填了就必須是非負數字。
     名稱與清單項目吻合時記錄關聯，方便日後統計使用哪些訓練項目。"""
     cleaned = []
     for entry in entries:
@@ -181,11 +212,20 @@ def _build_class_exercises(entries):
             continue
         if not category:
             raise ValidationError("有訓練項目未選擇分類", field="exercises")
-        cleaned.append((category, name))
+        cleaned.append(
+            {
+                "category": category,
+                "name": name,
+                "weight_kg": _parse_optional_decimal(entry.get("weight_kg"), "公斤數"),
+                "sets": _parse_optional_int(entry.get("sets"), "組數"),
+                "reps": _parse_optional_int(entry.get("reps"), "次數"),
+                "note": _blank_to_none(entry.get("note")),
+            }
+        )
 
     catalog_by_name = {}
     if cleaned:
-        names = [name for _, name in cleaned]
+        names = [item["name"] for item in cleaned]
         catalog_by_name = {
             item.name: item.id
             for item in ExerciseCatalogItem.query.filter(ExerciseCatalogItem.name.in_(names)).all()
@@ -193,13 +233,30 @@ def _build_class_exercises(entries):
 
     return [
         ClassExercise(
-            category=category,
-            name=name,
-            exercise_catalog_item_id=catalog_by_name.get(name),
+            category=item["category"],
+            name=item["name"],
+            weight_kg=item["weight_kg"],
+            sets=item["sets"],
+            reps=item["reps"],
+            note=item["note"],
+            exercise_catalog_item_id=catalog_by_name.get(item["name"]),
             sort_order=index,
         )
-        for index, (category, name) in enumerate(cleaned)
+        for index, item in enumerate(cleaned)
     ]
+
+
+def list_active_coaches():
+    return User.query.filter_by(role="coach", status="active").order_by(User.name.asc()).all()
+
+
+def _validate_coach(coach_id):
+    if not coach_id:
+        raise ValidationError("請選擇上課教練", field="coach_id")
+    coach = db.session.get(User, coach_id)
+    if not coach or coach.role != "coach" or coach.status != "active":
+        raise ValidationError("上課教練不正確", field="coach_id")
+    return coach
 
 
 def create_class_record(student, data):
@@ -209,13 +266,14 @@ def create_class_record(student, data):
         raise ValidationError("到課日期為必填", field="class_date")
     if not data.get("class_time"):
         raise ValidationError("到課時間為必填", field="class_time")
+    coach = _validate_coach(data.get("coach_id"))
     exercises = _build_class_exercises(data.get("exercises") or [])
 
     record = ClassRecord(
         student_id=student.id,
         class_date=data["class_date"],
         class_time=data["class_time"],
-        duration_minutes=data.get("duration_minutes") or None,
+        coach_id=coach.id,
         notes=_blank_to_none(data.get("notes")),
         exercises=exercises,
     )
@@ -233,8 +291,8 @@ def update_class_record(record, data):
         if not data["class_time"]:
             raise ValidationError("到課時間為必填", field="class_time")
         record.class_time = data["class_time"]
-    if "duration_minutes" in data:
-        record.duration_minutes = data["duration_minutes"] or None
+    if "coach_id" in data:
+        record.coach_id = _validate_coach(data["coach_id"]).id
     if "notes" in data:
         record.notes = _blank_to_none(data["notes"])
     if "exercises" in data:
@@ -444,5 +502,11 @@ def set_account_role(user, target_role):
     if user.role == "admin":
         raise ValidationError("管理者帳號的角色無法在此變更", field="role")
     user.role = target_role
+    db.session.commit()
+    return user
+
+
+def set_account_password(user, new_password):
+    user.set_password(new_password)
     db.session.commit()
     return user

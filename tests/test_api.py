@@ -29,7 +29,7 @@ def test_api_list_students_supports_search_and_status(logged_in_client):
     assert resp.get_json() == []
 
 
-def test_api_summary_shape_matches_spec(logged_in_client):
+def test_api_summary_shape_matches_spec(logged_in_client, coach_user):
     student_id = logged_in_client.post("/api/students", json={"name": "王小明"}).get_json()["student_id"]
 
     logged_in_client.post(
@@ -38,7 +38,7 @@ def test_api_summary_shape_matches_spec(logged_in_client):
     )
     logged_in_client.post(
         f"/api/students/{student_id}/classes",
-        json={"class_date": "2026-01-05", "class_time": "10:00"},
+        json={"class_date": "2026-01-05", "class_time": "10:00", "coach_id": coach_user.id},
     )
 
     resp = logged_in_client.get(f"/api/students/{student_id}/summary")
@@ -150,7 +150,7 @@ def test_api_create_class_blocked_when_no_remaining_quota(logged_in_client):
     assert "已無上課堂數，請確認" in body["error"]
 
 
-def test_api_create_class_with_exercises(logged_in_client):
+def test_api_create_class_with_exercises(logged_in_client, coach_user):
     student_id = logged_in_client.post("/api/students", json={"name": "王小明"}).get_json()["student_id"]
     logged_in_client.post(
         f"/api/students/{student_id}/purchases",
@@ -163,11 +163,13 @@ def test_api_create_class_with_exercises(logged_in_client):
         json={
             "class_date": "2026-01-05",
             "class_time": "10:00",
-            "exercises": [{"category": "核心 / 旋轉", "name": "捲腹"}],
+            "coach_id": coach_user.id,
+            "exercises": [{"category": "核心 / 旋轉", "name": "捲腹", "sets": 3, "reps": 12}],
         },
     )
     assert resp.status_code == 201
     body = resp.get_json()
+    assert body["coach_id"] == coach_user.id
     assert body["exercises"] == [
         {
             "id": body["exercises"][0]["id"],
@@ -175,13 +177,31 @@ def test_api_create_class_with_exercises(logged_in_client):
             "exercise_catalog_item_id": body["exercises"][0]["exercise_catalog_item_id"],
             "category": "核心 / 旋轉",
             "name": "捲腹",
+            "weight_kg": None,
+            "sets": 3,
+            "reps": 12,
+            "note": None,
             "sort_order": 0,
         }
     ]
     assert body["exercises"][0]["exercise_catalog_item_id"] is not None
 
 
-def test_api_create_class_with_exercise_missing_category_returns_400(logged_in_client):
+def test_api_create_class_without_coach_returns_400(logged_in_client):
+    student_id = logged_in_client.post("/api/students", json={"name": "王小明"}).get_json()["student_id"]
+    logged_in_client.post(
+        f"/api/students/{student_id}/purchases",
+        json={"purchase_date": "2026-01-01", "quantity": 10},
+    )
+    resp = logged_in_client.post(
+        f"/api/students/{student_id}/classes",
+        json={"class_date": "2026-01-05", "class_time": "10:00"},
+    )
+    assert resp.status_code == 400
+    assert resp.get_json()["field"] == "coach_id"
+
+
+def test_api_create_class_with_exercise_missing_category_returns_400(logged_in_client, coach_user):
     student_id = logged_in_client.post("/api/students", json={"name": "王小明"}).get_json()["student_id"]
     logged_in_client.post(
         f"/api/students/{student_id}/purchases",
@@ -192,6 +212,7 @@ def test_api_create_class_with_exercise_missing_category_returns_400(logged_in_c
         json={
             "class_date": "2026-01-05",
             "class_time": "10:00",
+            "coach_id": coach_user.id,
             "exercises": [{"category": "", "name": "捲腹"}],
         },
     )
@@ -199,7 +220,7 @@ def test_api_create_class_with_exercise_missing_category_returns_400(logged_in_c
     assert resp.get_json()["field"] == "exercises"
 
 
-def test_api_update_class_replaces_exercises(logged_in_client):
+def test_api_update_class_replaces_exercises(logged_in_client, coach_user):
     student_id = logged_in_client.post("/api/students", json={"name": "王小明"}).get_json()["student_id"]
     logged_in_client.post(
         f"/api/students/{student_id}/purchases",
@@ -210,6 +231,7 @@ def test_api_update_class_replaces_exercises(logged_in_client):
         json={
             "class_date": "2026-01-05",
             "class_time": "10:00",
+            "coach_id": coach_user.id,
             "exercises": [{"category": "核心 / 旋轉", "name": "捲腹"}],
         },
     ).get_json()

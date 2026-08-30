@@ -55,6 +55,16 @@ class RegisterForm(FlaskForm):
     goal = TextAreaField("期望運動達成的效益", validators=[Optional(), Length(max=2000)])
 
 
+class SetPasswordForm(FlaskForm):
+    new_password = PasswordField(
+        "新密碼", validators=[DataRequired(message="密碼為必填"), Length(min=8, message="密碼長度至少需 8 碼")]
+    )
+    confirm_password = PasswordField(
+        "確認新密碼",
+        validators=[DataRequired(message="請再次輸入密碼"), EqualTo("new_password", message="兩次輸入的密碼不一致")],
+    )
+
+
 class CoachForm(FlaskForm):
     username = StringField(
         "帳號", validators=[DataRequired(message="帳號為必填"), Length(max=80), _validate_username_unique]
@@ -100,9 +110,7 @@ class PurchaseForm(FlaskForm):
 class ClassRecordForm(FlaskForm):
     class_date = DateField("到課日期", validators=[DataRequired(message="到課日期為必填")])
     class_time = TimeField("到課時間", validators=[DataRequired(message="到課時間為必填")])
-    duration_minutes = IntegerField(
-        "上課時長(分鐘)", validators=[Optional(), NumberRange(min=1, message="時長需為正整數")]
-    )
+    coach_id = SelectField("上課教練", validators=[DataRequired(message="請選擇上課教練")])
     notes = TextAreaField("備註", validators=[Optional(), Length(max=2000)])
 
 

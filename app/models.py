@@ -163,13 +163,14 @@ class ClassRecord(db.Model):
     )
     class_date = db.Column(db.Date, nullable=False)
     class_time = db.Column(db.Time, nullable=False)
-    duration_minutes = db.Column(db.Integer)
+    coach_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), index=True)
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(
         db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
+    coach = db.relationship("User", foreign_keys=[coach_id])
     exercises = db.relationship(
         "ClassExercise",
         backref="class_record",
@@ -183,7 +184,8 @@ class ClassRecord(db.Model):
             "student_id": self.student_id,
             "class_date": self.class_date.isoformat() if self.class_date else None,
             "class_time": self.class_time.isoformat() if self.class_time else None,
-            "duration_minutes": self.duration_minutes,
+            "coach_id": self.coach_id,
+            "coach_name": self.coach.name if self.coach else None,
             "notes": self.notes,
             "exercises": [e.to_dict() for e in self.exercises],
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -228,6 +230,10 @@ class ClassExercise(db.Model):
     )
     category = db.Column(db.String(120), nullable=False)
     name = db.Column(db.String(200), nullable=False)
+    weight_kg = db.Column(db.Numeric(6, 2))
+    sets = db.Column(db.Integer)
+    reps = db.Column(db.Integer)
+    note = db.Column(db.Text)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
 
     def to_dict(self):
@@ -237,5 +243,9 @@ class ClassExercise(db.Model):
             "exercise_catalog_item_id": self.exercise_catalog_item_id,
             "category": self.category,
             "name": self.name,
+            "weight_kg": float(self.weight_kg) if self.weight_kg is not None else None,
+            "sets": self.sets,
+            "reps": self.reps,
+            "note": self.note,
             "sort_order": self.sort_order,
         }

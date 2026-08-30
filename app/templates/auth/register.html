@@ -17,12 +17,24 @@
         <div class="form-grid cols-2">
           <div>
             {{ form.password.label }}
-            {{ form.password(type="password", autocomplete="new-password") }}
+            <div class="password-field">
+              {{ form.password(type="password", autocomplete="new-password") }}
+              <button type="button" class="password-toggle" data-visible="false" aria-label="顯示密碼">
+                <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.6 21.6 0 0 1 5.06-6.06M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.6 21.6 0 0 1-2.61 3.94M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
             {% for e in form.password.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
           </div>
           <div>
             {{ form.confirm_password.label }}
-            {{ form.confirm_password(type="password", autocomplete="new-password") }}
+            <div class="password-field">
+              {{ form.confirm_password(type="password", autocomplete="new-password") }}
+              <button type="button" class="password-toggle" data-visible="false" aria-label="顯示密碼">
+                <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.6 21.6 0 0 1 5.06-6.06M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.6 21.6 0 0 1-2.61 3.94M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
             {% for e in form.confirm_password.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
           </div>
         </div>

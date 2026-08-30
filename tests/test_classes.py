@@ -17,13 +17,28 @@ def _student_with_quota(client, db, quantity=10, name="王小明"):
     return student
 
 
-def add_class(client, student_id, **overrides):
+def _ensure_coach(db, name="教練A"):
+    """取得(或建立)一位可指派為上課教練的使用者，供需要新增/編輯上課紀錄的測試使用。"""
+    from app.models import User
+
+    coach = User.query.filter_by(role="coach", name=name).first()
+    if coach:
+        return coach
+    coach = User(username=f"coach_{name}", role="coach", status="active", name=name)
+    coach.set_password("CoachPass123")
+    db.session.add(coach)
+    db.session.commit()
+    return coach
+
+
+def add_class(client, db, student_id, **overrides):
     resp = client.get(f"/students/{student_id}/classes/new")
     token = get_csrf_token(resp.get_data(as_text=True))
+    coach = _ensure_coach(db)
     data = {
         "class_date": "2026-01-05",
         "class_time": "10:00",
-        "duration_minutes": "",
+        "coach_id": str(coach.id),
         "notes": "",
         "csrf_token": token,
     }
@@ -34,29 +49,49 @@ def add_class(client, student_id, **overrides):
 def test_date_and_time_required(logged_in_client, db):
     student = _student_with_quota(logged_in_client, db)
 
-    resp = add_class(logged_in_client, student.id, class_date="")
+    resp = add_class(logged_in_client, db, student.id, class_date="")
     assert "到課日期為必填" in resp.get_data(as_text=True)
 
-    resp = add_class(logged_in_client, student.id, class_time="")
+    resp = add_class(logged_in_client, db, student.id, class_time="")
     assert "到課時間為必填" in resp.get_data(as_text=True)
+
+
+def test_coach_required(logged_in_client, db):
+    student = _student_with_quota(logged_in_client, db)
+
+    resp = add_class(logged_in_client, db, student.id, coach_id="")
+    assert "請選擇上課教練" in resp.get_data(as_text=True)
 
 
 def test_create_class_record_updates_attended_count(logged_in_client, db):
     student = _student_with_quota(logged_in_client, db)
 
-    add_class(logged_in_client, student.id, class_date="2026-01-05")
-    add_class(logged_in_client, student.id, class_date="2026-01-12")
+    add_class(logged_in_client, db, student.id, class_date="2026-01-05")
+    add_class(logged_in_client, db, student.id, class_date="2026-01-12")
     db.session.refresh(student)
     assert student.total_attended == 2
 
 
+def test_create_class_record_saves_coach(logged_in_client, db):
+    from app.models import ClassRecord
+
+    student = _student_with_quota(logged_in_client, db)
+    coach = _ensure_coach(db)
+
+    add_class(logged_in_client, db, student.id, class_date="2026-01-05")
+
+    record = ClassRecord.query.filter_by(student_id=student.id).first()
+    assert record.coach_id == coach.id
+
+
 def test_edit_class_record_does_not_change_attended_count(logged_in_client, db):
     student = _student_with_quota(logged_in_client, db)
-    add_class(logged_in_client, student.id, class_date="2026-01-05")
+    add_class(logged_in_client, db, student.id, class_date="2026-01-05")
 
     from app.models import ClassRecord
 
     record = ClassRecord.query.filter_by(student_id=student.id).first()
+    coach = _ensure_coach(db)
 
     resp = logged_in_client.get(f"/classes/{record.id}/edit")
     token = get_csrf_token(resp.get_data(as_text=True))
@@ -65,7 +100,7 @@ def test_edit_class_record_does_not_change_attended_count(logged_in_client, db):
         data={
             "class_date": "2026-01-06",
             "class_time": "11:00",
-            "duration_minutes": "",
+            "coach_id": str(coach.id),
             "notes": "更正日期時間",
             "csrf_token": token,
         },
@@ -78,8 +113,8 @@ def test_edit_class_record_does_not_change_attended_count(logged_in_client, db):
 
 def test_delete_class_record_decreases_attended_count(logged_in_client, db):
     student = _student_with_quota(logged_in_client, db)
-    add_class(logged_in_client, student.id, class_date="2026-01-05")
-    add_class(logged_in_client, student.id, class_date="2026-01-12")
+    add_class(logged_in_client, db, student.id, class_date="2026-01-05")
+    add_class(logged_in_client, db, student.id, class_date="2026-01-12")
 
     from app.models import ClassRecord
 
@@ -102,7 +137,7 @@ def test_cannot_add_class_when_no_remaining_quota(logged_in_client, db):
     student = _student(db)
     assert student.remaining == 0
 
-    resp = add_class(logged_in_client, student.id)
+    resp = add_class(logged_in_client, db, student.id)
     assert "已無上課堂數，請確認" in resp.get_data(as_text=True)
     assert ClassRecord.query.filter_by(student_id=student.id).count() == 0
 
@@ -111,11 +146,11 @@ def test_cannot_add_class_when_quota_exactly_used_up(logged_in_client, db):
     from app.models import ClassRecord
 
     student = _student_with_quota(logged_in_client, db, quantity=1)
-    add_class(logged_in_client, student.id, class_date="2026-01-05")
+    add_class(logged_in_client, db, student.id, class_date="2026-01-05")
     db.session.refresh(student)
     assert student.remaining == 0
 
-    resp = add_class(logged_in_client, student.id, class_date="2026-01-06")
+    resp = add_class(logged_in_client, db, student.id, class_date="2026-01-06")
     assert "已無上課堂數，請確認" in resp.get_data(as_text=True)
     assert ClassRecord.query.filter_by(student_id=student.id).count() == 1
 
@@ -139,11 +174,12 @@ def test_edit_class_still_allowed_when_quota_used_up(logged_in_client, db):
     from app.models import ClassRecord
 
     student = _student_with_quota(logged_in_client, db, quantity=1)
-    add_class(logged_in_client, student.id, class_date="2026-01-05")
+    add_class(logged_in_client, db, student.id, class_date="2026-01-05")
     db.session.refresh(student)
     assert student.remaining == 0
 
     record = ClassRecord.query.filter_by(student_id=student.id).first()
+    coach = _ensure_coach(db)
     resp = logged_in_client.get(f"/classes/{record.id}/edit")
     token = get_csrf_token(resp.get_data(as_text=True))
     resp = logged_in_client.post(
@@ -151,7 +187,7 @@ def test_edit_class_still_allowed_when_quota_used_up(logged_in_client, db):
         data={
             "class_date": "2026-01-06",
             "class_time": "11:00",
-            "duration_minutes": "",
+            "coach_id": str(coach.id),
             "notes": "",
             "csrf_token": token,
         },
@@ -173,6 +209,7 @@ def test_add_class_with_catalog_exercise_links_catalog_item(logged_in_client, db
 
     add_class(
         logged_in_client,
+        db,
         student.id,
         **{"exercise_category": "下肢(蹲類)訓練", "exercise_name": "壺鈴深蹲"},
     )
@@ -190,6 +227,7 @@ def test_add_class_with_custom_exercise_not_in_catalog(logged_in_client, db):
 
     add_class(
         logged_in_client,
+        db,
         student.id,
         **{"exercise_category": "自訂分類", "exercise_name": "教練自訂項目"},
     )
@@ -199,10 +237,57 @@ def test_add_class_with_custom_exercise_not_in_catalog(logged_in_client, db):
     assert exercise.exercise_catalog_item_id is None
 
 
+def test_add_class_with_exercise_sets_and_reps(logged_in_client, db):
+    from app.models import ClassExercise
+
+    student = _student_with_quota(logged_in_client, db)
+
+    add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{
+            "exercise_category": "下肢(蹲類)訓練",
+            "exercise_name": "壺鈴深蹲",
+            "exercise_weight_kg": "20.5",
+            "exercise_sets": "3",
+            "exercise_reps": "12",
+            "exercise_note": "注意膝蓋方向",
+        },
+    )
+
+    exercise = ClassExercise.query.filter_by(name="壺鈴深蹲").first()
+    assert exercise is not None
+    assert float(exercise.weight_kg) == 20.5
+    assert exercise.sets == 3
+    assert exercise.reps == 12
+    assert exercise.note == "注意膝蓋方向"
+
+
+def test_add_class_with_negative_sets_shows_error(logged_in_client, db):
+    from app.models import ClassExercise
+
+    student = _student_with_quota(logged_in_client, db)
+
+    resp = add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{
+            "exercise_category": "下肢(蹲類)訓練",
+            "exercise_name": "壺鈴深蹲",
+            "exercise_sets": "-1",
+        },
+    )
+    assert "組數不能是負數" in resp.get_data(as_text=True)
+    assert ClassExercise.query.count() == 0
+
+
 def test_add_class_with_multiple_exercises_preserves_order(logged_in_client, db):
     from app.models import ClassRecord
 
     student = _student_with_quota(logged_in_client, db)
+    coach = _ensure_coach(db)
 
     resp = logged_in_client.get(f"/students/{student.id}/classes/new")
     token = get_csrf_token(resp.get_data(as_text=True))
@@ -211,7 +296,7 @@ def test_add_class_with_multiple_exercises_preserves_order(logged_in_client, db)
         data={
             "class_date": "2026-01-05",
             "class_time": "10:00",
-            "duration_minutes": "",
+            "coach_id": str(coach.id),
             "notes": "",
             "exercise_category": ["核心 / 旋轉", "下肢(蹲類)訓練"],
             "exercise_name": ["捲腹", "壺鈴深蹲"],
@@ -231,6 +316,7 @@ def test_add_class_with_exercise_name_but_no_category_shows_error(logged_in_clie
 
     resp = add_class(
         logged_in_client,
+        db,
         student.id,
         **{"exercise_category": "", "exercise_name": "捲腹"},
     )
@@ -242,8 +328,10 @@ def test_edit_class_replaces_exercise_list(logged_in_client, db):
     from app.models import ClassRecord
 
     student = _student_with_quota(logged_in_client, db)
+    coach = _ensure_coach(db)
     add_class(
         logged_in_client,
+        db,
         student.id,
         **{"exercise_category": "核心 / 旋轉", "exercise_name": "捲腹"},
     )
@@ -257,7 +345,7 @@ def test_edit_class_replaces_exercise_list(logged_in_client, db):
         data={
             "class_date": "2026-01-05",
             "class_time": "10:00",
-            "duration_minutes": "",
+            "coach_id": str(coach.id),
             "notes": "",
             "exercise_category": "下肢(蹲類)訓練",
             "exercise_name": "壺鈴深蹲",
@@ -276,6 +364,7 @@ def test_delete_class_record_removes_its_exercises(logged_in_client, db):
     student = _student_with_quota(logged_in_client, db)
     add_class(
         logged_in_client,
+        db,
         student.id,
         **{"exercise_category": "核心 / 旋轉", "exercise_name": "捲腹"},
     )

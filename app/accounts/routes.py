@@ -3,7 +3,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from .. import services
 from ..auth.decorators import roles_required
 from ..extensions import db
-from ..forms import CoachForm, DeleteConfirmForm
+from ..forms import CoachForm, DeleteConfirmForm, SetPasswordForm
 from ..models import User
 
 bp = Blueprint("accounts", __name__, url_prefix="/accounts")
@@ -33,7 +33,12 @@ def list_accounts():
 @roles_required("admin", "coach")
 def view_account(user_id):
     user = _get_user_or_404(user_id)
-    return render_template("accounts/detail.html", account=user)
+    return render_template(
+        "accounts/detail.html",
+        account=user,
+        delete_form=DeleteConfirmForm(),
+        password_form=SetPasswordForm(),
+    )
 
 
 @bp.route("/<int:user_id>/verify", methods=["POST"])
@@ -77,6 +82,21 @@ def change_role(user_id):
         except services.ValidationError as exc:
             flash(exc.message, "danger")
     return redirect(url_for("accounts.list_accounts"))
+
+
+@bp.route("/<int:user_id>/password", methods=["POST"])
+@roles_required("admin")
+def change_password(user_id):
+    user = _get_user_or_404(user_id)
+    form = SetPasswordForm()
+    if form.validate_on_submit():
+        services.set_account_password(user, form.new_password.data)
+        flash(f"已變更帳號「{user.username}」的密碼。", "success")
+    else:
+        for field_errors in form.errors.values():
+            for message in field_errors:
+                flash(message, "danger")
+    return redirect(url_for("accounts.view_account", user_id=user_id))
 
 
 @bp.route("/new-coach", methods=["GET", "POST"])

@@ -96,7 +96,7 @@ pytest
 
 | 階段 | 對應內容 |
 |---|---|
-| 需求 / 威脅建模 | 依 `student-mgmt-scenarios.md` 的 User Story 與驗收標準逐條落地；額外辨識「系統存有學生個資」的威脅，補上未在原規格明訂的登入存取控制 |
+| 需求 / 威脅建模 | 依 `student-mgmt-scenarios.md` 的 User Story 與驗收標準逐條落地；額外辨識「系統存有學生個資」的威脅，補上未在原規格明訂的登入存取控制；後續變更需求與驗收標準記錄於 [`docs/requirements-matrix.md`](docs/requirements-matrix.md) |
 | 設計 | Blueprint 分層（auth/students/purchases/classes/api）＋共用 `services.py` 業務邏輯層，避免 HTML 表單與 JSON API 各自實作一份驗證規則造成邏輯漂移 |
 | 實作安全控制 | 見下表 |
 | 測試 | pytest 涵蓋各 User Story 驗收標準＋專門的安全測試（CSRF/XSS/SQL injection 探測） |

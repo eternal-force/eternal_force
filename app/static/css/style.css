@@ -279,12 +279,14 @@ button {
 /* ---------- Badges ---------- */
 .badge {
   display: inline-block;
+  max-width: 100%;
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 700;
   background: #eef2ff;
   color: var(--color-primary-dark);
+  overflow-wrap: anywhere;
 }
 
 .badge-success { background: #dcfce7; color: #166534; }
@@ -414,6 +416,49 @@ input:focus, textarea:focus, select:focus {
   outline-offset: 1px;
 }
 
+#status {
+  font-size: 0.8rem;
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 42px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: var(--color-text);
+}
+
+.password-toggle .icon-eye-off {
+  display: none;
+}
+
+.password-toggle[data-visible="true"] .icon-eye {
+  display: none;
+}
+
+.password-toggle[data-visible="true"] .icon-eye-off {
+  display: block;
+}
+
 .field-error {
   color: var(--color-danger);
   font-size: 0.8rem;
@@ -440,6 +485,11 @@ input:focus, textarea:focus, select:focus {
   border-radius: 8px;
   padding: 12px;
   background: #fafbfc;
+}
+
+.record-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (min-width: 640px) {
@@ -488,20 +538,66 @@ input:focus, textarea:focus, select:focus {
 }
 
 .exercise-entry-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 12px;
   background: #fafbfc;
 }
 
-@media (min-width: 640px) {
-  .exercise-entry-row {
-    grid-template-columns: 1fr 1.5fr auto;
-    align-items: end;
-  }
+.exercise-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exercise-row-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1;
+}
+
+.exercise-toggle-arrow {
+  display: inline-block;
+  transition: transform 0.15s;
+  color: var(--color-text-muted);
+}
+
+.exercise-entry-row[data-collapsed="true"] .exercise-toggle-arrow {
+  transform: rotate(90deg);
+}
+
+.exercise-row-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exercise-entry-header-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.exercise-entry-body {
+  margin-top: 10px;
+}
+
+.exercise-entry-row[data-collapsed="true"] .exercise-entry-body {
+  display: none;
+}
+
+.exercise-entry-row[data-collapsed="true"] .exercise-row-collapse {
+  display: none;
 }
 
 .record-row-detail {
@@ -510,6 +606,78 @@ input:focus, textarea:focus, select:focus {
   align-items: center;
   gap: 6px;
   margin-top: 2px;
+}
+
+.class-row {
+  grid-template-columns: 1fr;
+}
+
+details.class-row {
+  cursor: default;
+}
+
+.class-row-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.class-row-summary::marker,
+.class-row-summary::-webkit-details-marker {
+  display: none;
+}
+
+.exercise-toggle-arrow,
+.section-toggle-arrow {
+  display: inline-block;
+  transition: transform 0.15s;
+  color: var(--color-text-muted);
+}
+
+details[open] > .class-row-summary .exercise-toggle-arrow,
+details.card[open] > summary .section-toggle-arrow {
+  transform: rotate(90deg);
+}
+
+.class-row-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.class-field-label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.exercise-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exercise-list li {
+  font-size: 0.88rem;
+}
+
+.card-section-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.card-section-summary::marker,
+.card-section-summary::-webkit-details-marker {
+  display: none;
 }
 
 .record-row .field-label-mobile {
@@ -529,6 +697,24 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+.inline-reveal {
+  margin-top: 10px;
+}
+
+.app-dialog {
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  width: min(420px, 90vw);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.app-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
 }
 
 /* ---------- Flash messages ---------- */

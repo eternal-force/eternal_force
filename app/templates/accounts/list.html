@@ -38,18 +38,7 @@
           <div><span class="field-label-mobile">姓名</span>{{ u.name or '-' }}</div>
           <div>
             <span class="field-label-mobile">角色</span>
-            {% if current_user.role == 'admin' and u.role != 'admin' %}
-              <form method="post" action="{{ url_for('accounts.change_role', user_id=u.id) }}" class="role-form">
-                {{ delete_form.hidden_tag() }}
-                <select name="target_role">
-                  <option value="student" {% if u.role == 'student' %}selected{% endif %}>學生</option>
-                  <option value="coach" {% if u.role == 'coach' %}selected{% endif %}>教練</option>
-                </select>
-                <button type="submit" class="btn btn-sm">更新</button>
-              </form>
-            {% else %}
-              {{ role_label.get(u.role, u.role) }}
-            {% endif %}
+            {{ role_label.get(u.role, u.role) }}
           </div>
           <div>
             <span class="field-label-mobile">狀態</span>
