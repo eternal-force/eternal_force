@@ -125,6 +125,27 @@ def test_toggle_status_deactivate_and_reactivate(logged_in_client, db):
     assert "已重新啟用" in resp.get_data(as_text=True)
 
 
+def test_reactivating_student_reactivates_linked_account(logged_in_client, active_student_user, db):
+    from app import services
+    from app.models import Student
+
+    student = db.session.get(Student, active_student_user.student_id)
+
+    # 模擬帳號管理頁停用帳號：依既有規則(REQ-004)連動把學生名冊改為停用
+    services.set_account_status(active_student_user, "disabled")
+    db.session.refresh(student)
+    assert student.status == "inactive"
+    assert active_student_user.status == "disabled"
+
+    detail = logged_in_client.get(f"/students/{student.id}")
+    token = get_csrf_token(detail.get_data(as_text=True))
+    logged_in_client.post(f"/students/{student.id}/status", data={"csrf_token": token})
+    db.session.refresh(student)
+    db.session.refresh(active_student_user)
+    assert student.status == "active"
+    assert active_student_user.status == "active"
+
+
 def test_student_role_list_redirects_to_own_detail(student_client, active_student_user):
     resp = student_client.get("/students/", follow_redirects=False)
     assert resp.status_code == 302

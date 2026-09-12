@@ -129,10 +129,19 @@ def update_student(student, data):
     return student
 
 
+def _activate_linked_account(student):
+    """學生重新啟用時，若有對應的登入帳號且尚未啟用，一併改為啟用(呼應帳號停用時會同步停用學生名冊的既有規則)。"""
+    linked_user = User.query.filter_by(student_id=student.id).first()
+    if linked_user is not None and linked_user.role != "admin" and linked_user.status != "active":
+        linked_user.status = "active"
+
+
 def set_student_status(student, status):
     if status not in ("active", "inactive"):
         raise ValidationError("狀態值不正確，需為 active 或 inactive", field="status")
     student.status = status
+    if status == "active":
+        _activate_linked_account(student)
     db.session.commit()
     return student
 
