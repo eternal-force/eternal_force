@@ -28,6 +28,9 @@ class User(UserMixin, db.Model):
     )
     name = db.Column(db.String(120))
     phone = db.Column(db.String(40))
+    phone_type = db.Column(
+        db.Enum("mobile", "landline", name="user_phone_type_enum", native_enum=False)
+    )
     birthday = db.Column(db.Date)
     gender = db.Column(
         db.Enum("male", "female", "other", name="user_gender_enum", native_enum=False)

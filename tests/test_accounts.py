@@ -81,6 +81,31 @@ def test_verify_is_idempotent(logged_in_client, pending_student_user, db):
     assert Student.query.count() == 1
 
 
+def test_reject_then_reactivate_rebinds_student(logged_in_client, pending_student_user, db):
+    resp = logged_in_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+
+    logged_in_client.post(
+        f"/accounts/{pending_student_user.id}/status",
+        data={"target_status": "disabled", "csrf_token": token},
+    )
+    db.session.refresh(pending_student_user)
+    assert pending_student_user.status == "disabled"
+    assert pending_student_user.student_id is None
+
+    logged_in_client.post(
+        f"/accounts/{pending_student_user.id}/status",
+        data={"target_status": "active", "csrf_token": token},
+    )
+    db.session.refresh(pending_student_user)
+    assert pending_student_user.status == "active"
+    assert pending_student_user.student_id is not None
+
+    student = db.session.get(Student, pending_student_user.student_id)
+    assert student.name == pending_student_user.name
+    assert student.status == "active"
+
+
 def test_status_toggle_both_directions(logged_in_client, active_student_user, db):
     resp = logged_in_client.get("/accounts/")
     token = get_csrf_token(resp.get_data(as_text=True))
@@ -184,6 +209,7 @@ def test_new_coach_is_active_immediately_without_verification(logged_in_client, 
             "username": "new_coach",
             "password": "NewCoach123",
             "name": "新教練",
+            "phone_type": "mobile",
             "phone": "0955555555",
             "csrf_token": token,
         },

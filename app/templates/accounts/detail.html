@@ -7,6 +7,7 @@
   {% set role_label = {"admin": "管理者", "coach": "教練", "student": "學生"} %}
   {% set status_label = {"pending": "待驗證", "active": "啟用中", "disabled": "已停用"} %}
   {% set gender_label = {"male": "男", "female": "女", "other": "其他"} %}
+  {% set phone_type_label = {"mobile": "手機", "landline": "家電"} %}
 
   <div class="card">
     <div class="row-between">
@@ -30,8 +31,14 @@
         <div>{{ account.name or '-' }}</div>
       </div>
       <div>
-        <div class="muted" style="font-size:0.78rem;">手機</div>
-        <div>{{ account.phone or '-' }}</div>
+        <div class="muted" style="font-size:0.78rem;">連絡電話</div>
+        <div>
+          {% if account.phone %}
+            {{ account.phone }}{% if account.phone_type %}（{{ phone_type_label.get(account.phone_type, account.phone_type) }}）{% endif %}
+          {% else %}
+            -
+          {% endif %}
+        </div>
       </div>
       <div>
         <div class="muted" style="font-size:0.78rem;">生日</div>
@@ -67,6 +74,13 @@
           <button type="button" class="btn btn-sm" data-toggle-target="role-form-{{ account.id }}">變更角色</button>
         {% endif %}
         <button type="button" class="btn btn-sm" data-open-dialog="password-dialog-{{ account.id }}">變更密碼</button>
+        {% if account.role != 'admin' and account.status == 'disabled' %}
+          <form method="post" action="{{ url_for('accounts.delete_account', user_id=account.id) }}"
+                data-confirm="確定要刪除帳號「{{ account.username }}」嗎？此動作無法復原，若對應學生尚有剩餘課程將無法刪除。">
+            {{ delete_form.hidden_tag() }}
+            <button type="submit" class="btn btn-sm btn-danger">刪除帳號</button>
+          </form>
+        {% endif %}
       </div>
 
       {% if account.role != 'admin' %}

@@ -76,27 +76,31 @@ def student_detail(student_id):
 
 
 @bp.route("/<int:student_id>/edit", methods=["GET", "POST"])
-@roles_required("admin", "coach")
+@login_required
 def edit_student(student_id):
+    if current_user.role == "student" and student_id != current_user.student_id:
+        abort(403)
+    can_edit_status = current_user.role != "student"
     student = services.get_student_or_404(student_id)
     form = StudentForm(obj=student)
     if form.validate_on_submit():
-        services.update_student(
-            student,
-            {
-                "name": form.name.data,
-                "phone": form.phone.data,
-                "email": form.email.data,
-                "birthday": form.birthday.data,
-                "gender": form.gender.data,
-                "enrollment_date": form.enrollment_date.data,
-                "status": form.status.data,
-                "notes": form.notes.data,
-            },
-        )
+        data = {
+            "name": form.name.data,
+            "phone": form.phone.data,
+            "email": form.email.data,
+            "birthday": form.birthday.data,
+            "gender": form.gender.data,
+            "enrollment_date": form.enrollment_date.data,
+            "notes": form.notes.data,
+        }
+        if can_edit_status:
+            data["status"] = form.status.data
+        services.update_student(student, data)
         flash("學生資料已更新。", "success")
         return redirect(url_for("students.student_detail", student_id=student.id))
-    return render_template("students/form.html", form=form, mode="edit", student=student)
+    return render_template(
+        "students/form.html", form=form, mode="edit", student=student, can_edit_status=can_edit_status
+    )
 
 
 @bp.route("/<int:student_id>/status", methods=["POST"])

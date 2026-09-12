@@ -19,16 +19,16 @@
           {% if student.email %}{{ student.email }}{% endif %}
         </p>
       </div>
-      {% if current_user.role != 'student' %}
       <div class="btn-group">
         <a class="btn btn-sm" href="{{ url_for('students.edit_student', student_id=student.id) }}">編輯資料</a>
+        {% if current_user.role != 'student' %}
         <form method="post" action="{{ url_for('students.change_status', student_id=student.id) }}"
               data-confirm="確定要{{ '停用' if student.status == 'active' else '重新啟用' }}這位學生嗎？">
           {{ delete_form.hidden_tag() }}
           <button type="submit" class="btn btn-sm">{{ '停用' if student.status == 'active' else '重新啟用' }}</button>
         </form>
+        {% endif %}
       </div>
-      {% endif %}
     </div>
 
     {% if student.notes %}<p class="muted" style="margin-top:10px;">備註：{{ student.notes }}</p>{% endif %}
@@ -55,7 +55,7 @@
   <details class="card">
     <summary class="row-between card-section-summary">
       <h3 style="margin:0;"><span class="section-toggle-arrow">&#9656;</span> 購買紀錄</h3>
-      {% if current_user.role != 'student' %}
+      {% if current_user.role != 'student' and student.status == 'active' %}
       <a class="btn btn-sm btn-primary" href="{{ url_for('purchases.new_purchase', student_id=student.id) }}">+ 新增購買紀錄</a>
       {% endif %}
     </summary>
@@ -63,11 +63,18 @@
       <p class="muted" style="margin-top:10px;">尚無購買紀錄。</p>
     {% else %}
       <div class="record-list" style="margin-top:10px;">
+        <div class="record-row record-row-header">
+          <div>購買日期</div>
+          <div>購買堂數</div>
+          <div>購買金額</div>
+          <div>備註</div>
+          <div>{% if current_user.role != 'student' %}操作{% endif %}</div>
+        </div>
         {% for p in student.purchase_records %}
           <div class="record-row">
             <div><span class="field-label-mobile">購買日期</span>{{ p.purchase_date.strftime('%Y-%m-%d') }}</div>
-            <div><span class="field-label-mobile">堂數</span>{{ p.quantity }} 堂</div>
-            <div><span class="field-label-mobile">金額</span>{{ p.price if p.price is not none else '-' }}</div>
+            <div><span class="field-label-mobile">購買堂數</span>{{ p.quantity }} 堂</div>
+            <div><span class="field-label-mobile">購買金額</span>{{ p.price if p.price is not none else '-' }}</div>
             <div><span class="field-label-mobile">備註</span>{{ p.notes or '-' }}</div>
             {% if current_user.role != 'student' %}
             <div class="record-row-actions">
@@ -87,7 +94,7 @@
   <details class="card" open>
     <summary class="row-between card-section-summary">
       <h3 style="margin:0;"><span class="section-toggle-arrow">&#9656;</span> 上課紀錄</h3>
-      {% if current_user.role != 'student' %}
+      {% if current_user.role != 'student' and student.status == 'active' %}
       <a class="btn btn-sm btn-primary" href="{{ url_for('classes.new_class_record', student_id=student.id) }}">+ 新增上課紀錄</a>
       {% endif %}
     </summary>

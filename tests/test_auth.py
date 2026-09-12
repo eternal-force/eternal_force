@@ -57,6 +57,7 @@ def _register(client, **overrides):
         "password": "NewStudent123",
         "confirm_password": "NewStudent123",
         "name": "新學生",
+        "phone_type": "mobile",
         "phone": "0933333333",
         "birthday": "2001-01-01",
         "gender": "female",

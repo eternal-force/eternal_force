@@ -33,6 +33,28 @@ def test_quantity_must_be_positive_integer(logged_in_client, db):
     assert "購買堂數必須是正整數" in resp.get_data(as_text=True)
 
 
+def test_quantity_cannot_exceed_9999(logged_in_client, db):
+    create_student(logged_in_client, name="王小明")
+    student = _student(db)
+
+    resp = add_purchase(logged_in_client, student.id, quantity="10000")
+    assert "不能大於 9999" in resp.get_data(as_text=True)
+
+    resp = add_purchase(logged_in_client, student.id, quantity="9999")
+    assert "已新增" in resp.get_data(as_text=True)
+
+
+def test_price_cannot_exceed_1000000(logged_in_client, db):
+    create_student(logged_in_client, name="王小明")
+    student = _student(db)
+
+    resp = add_purchase(logged_in_client, student.id, quantity="1", price="1000001")
+    assert "不能大於 1,000,000" in resp.get_data(as_text=True)
+
+    resp = add_purchase(logged_in_client, student.id, quantity="1", price="1000000")
+    assert "已新增" in resp.get_data(as_text=True)
+
+
 def test_create_purchase_updates_summary_immediately(logged_in_client, db):
     create_student(logged_in_client, name="王小明")
     student = _student(db)

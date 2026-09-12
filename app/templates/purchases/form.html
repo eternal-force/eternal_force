@@ -17,13 +17,13 @@
           </div>
           <div>
             {{ form.quantity.label }}
-            {{ form.quantity(type="number", min="1", step="1") }}
+            {{ form.quantity(type="number", min="1", max="9999", step="1") }}
             {% for e in form.quantity.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
           </div>
         </div>
         <div>
           {{ form.price.label }}
-          {{ form.price(type="number", step="0.01", min="0") }}
+          {{ form.price(type="number", step="0.01", min="0", max="1000000") }}
           {% for e in form.price.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
         </div>
         <div>

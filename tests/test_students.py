@@ -66,6 +66,35 @@ def test_student_detail_shows_summary_and_record_links(logged_in_client):
     assert "新增上課紀錄" in body
 
 
+def test_student_card_shows_low_remaining_warning_when_below_five(logged_in_client, db):
+    create_student(logged_in_client, name="王小明")
+    from app.models import Student
+
+    student = Student.query.filter_by(name="王小明").first()
+
+    resp = logged_in_client.get("/students/")
+    body = resp.get_data(as_text=True)
+    assert student.remaining < 5
+    assert "剩餘堂數不足 5 堂，請提醒教練安排續購" in body
+
+
+def test_student_card_hides_low_remaining_warning_when_enough_remaining(logged_in_client, db):
+    from datetime import date
+
+    from app.models import PurchaseRecord, Student
+
+    create_student(logged_in_client, name="王小明")
+    student = Student.query.filter_by(name="王小明").first()
+    db.session.add(
+        PurchaseRecord(student_id=student.id, purchase_date=date(2026, 1, 1), quantity=10)
+    )
+    db.session.commit()
+
+    resp = logged_in_client.get("/students/")
+    body = resp.get_data(as_text=True)
+    assert "剩餘堂數不足 5 堂" not in body
+
+
 def test_toggle_status_deactivate_and_reactivate(logged_in_client, db):
     create_student(logged_in_client, name="王小明")
     from app.models import Student
@@ -115,7 +144,6 @@ def test_student_role_cannot_view_other_students_detail(student_client, db):
 
 def test_student_role_gets_403_on_admin_routes(student_client, active_student_user):
     assert student_client.get("/students/new").status_code == 403
-    assert student_client.get(f"/students/{active_student_user.student_id}/edit").status_code == 403
 
     own_page = student_client.get(f"/students/{active_student_user.student_id}")
     token = get_csrf_token(own_page.get_data(as_text=True))
@@ -123,6 +151,46 @@ def test_student_role_gets_403_on_admin_routes(student_client, active_student_us
         f"/students/{active_student_user.student_id}/status", data={"csrf_token": token}
     )
     assert resp.status_code == 403
+
+
+def test_student_role_can_edit_own_student_data_but_not_status(student_client, active_student_user, db):
+    from app.models import Student
+
+    edit_page = student_client.get(f"/students/{active_student_user.student_id}/edit")
+    assert edit_page.status_code == 200
+    body = edit_page.get_data(as_text=True)
+    # 在籍狀態不應以可編輯的下拉選單呈現給學生本人，但仍需以隱藏欄位帶出現值供表單驗證
+    assert 'id="status"' not in body
+    assert 'name="status" value="active"' in body
+
+    token = get_csrf_token(body)
+    resp = student_client.post(
+        f"/students/{active_student_user.student_id}/edit",
+        data={
+            "name": "李小華",
+            "phone": "0955555555",
+            "email": "changed@example.com",
+            "status": "inactive",  # 竄改嘗試：學生不應能透過此欄位變更在籍狀態
+            "csrf_token": token,
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+    student = db.session.get(Student, active_student_user.student_id)
+    assert student.phone == "0955555555"
+    assert student.email == "changed@example.com"
+    assert student.status == "active"
+
+
+def test_student_role_cannot_edit_other_students_data(student_client, db):
+    from app.models import Student
+
+    other = Student(name="其他學生", status="active")
+    db.session.add(other)
+    db.session.commit()
+
+    assert student_client.get(f"/students/{other.id}/edit").status_code == 403
 
 
 def test_coach_has_same_access_as_admin(coach_client):

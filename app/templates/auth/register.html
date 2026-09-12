@@ -47,15 +47,21 @@
 
         <div class="form-grid cols-2">
           <div>
+            {{ form.phone_type.label }}
+            {{ form.phone_type() }}
+            {% for e in form.phone_type.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
             {{ form.phone.label }}
             {{ form.phone() }}
             {% for e in form.phone.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
           </div>
-          <div>
-            {{ form.birthday.label }}
-            {{ form.birthday(type="date") }}
-            {% for e in form.birthday.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
-          </div>
+        </div>
+
+        <div>
+          {{ form.birthday.label }}
+          {{ form.birthday(type="date") }}
+          {% for e in form.birthday.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
         </div>
 
         <div>

@@ -76,6 +76,13 @@
                 <input type="hidden" name="target_status" value="active">
                 <button type="submit" class="btn btn-sm">重新啟用</button>
               </form>
+              {% if current_user.role == 'admin' %}
+                <form method="post" action="{{ url_for('accounts.delete_account', user_id=u.id) }}"
+                      data-confirm="確定要刪除帳號「{{ u.username }}」嗎？此動作無法復原，若對應學生尚有剩餘課程將無法刪除。">
+                  {{ delete_form.hidden_tag() }}
+                  <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+                </form>
+              {% endif %}
             {% endif %}
           </div>
         </div>

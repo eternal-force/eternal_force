@@ -51,7 +51,12 @@
 
         <div>
           {{ form.status.label }}
-          {{ form.status() }}
+          {% if can_edit_status is defined and not can_edit_status %}
+            <div>{{ '在籍' if form.status.data == 'active' else '停用' }}</div>
+            <input type="hidden" name="status" value="{{ form.status.data }}">
+          {% else %}
+            {{ form.status() }}
+          {% endif %}
         </div>
 
         <div>

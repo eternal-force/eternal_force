@@ -55,6 +55,8 @@
           </div>
           {% if s.remaining < 0 %}
             <div style="margin-top:10px;"><span class="badge badge-danger">已超上，請儘快補購</span></div>
+          {% elif s.remaining < 5 %}
+            <div style="margin-top:10px;"><span class="badge badge-warning">剩餘堂數不足 5 堂，請提醒教練安排續購</span></div>
           {% endif %}
         </a>
       {% endfor %}

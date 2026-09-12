@@ -19,11 +19,16 @@
           {{ form.password(type="password", autocomplete="new-password") }}
           {% for e in form.password.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
         </div>
+        <div>
+          {{ form.name.label }}
+          {{ form.name() }}
+          {% for e in form.name.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
         <div class="form-grid cols-2">
           <div>
-            {{ form.name.label }}
-            {{ form.name() }}
-            {% for e in form.name.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+            {{ form.phone_type.label }}
+            {{ form.phone_type() }}
+            {% for e in form.phone_type.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
           </div>
           <div>
             {{ form.phone.label }}

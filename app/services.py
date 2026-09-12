@@ -2,6 +2,7 @@
 確保新增/編輯/刪除與堂數統計規則只實作一份，不會兩邊邏輯兜不起來。
 """
 
+import re
 from decimal import Decimal, InvalidOperation
 
 from flask import abort
@@ -24,14 +25,52 @@ def _blank_to_none(value):
     return value or None
 
 
-def _validate_positive_int(value, label):
+# ---------- 帳號聯絡電話格式(REQ-006) ----------
+
+PHONE_TYPE_LABELS = {"mobile": "手機", "landline": "家電"}
+
+# 手機：09 開頭的 10 碼數字（台灣門號格式，例如 0912345678）。
+_MOBILE_PHONE_RE = re.compile(r"^09\d{8}$")
+# 家電：0 開頭的區碼（1~2 碼，但排除手機開頭的 09）加上 6~8 碼電話號碼，允許中間以「-」分隔（例如 02-12345678、049-123456）。
+_LANDLINE_PHONE_RE = re.compile(r"^(?!09)0\d{1,2}-?\d{6,8}$")
+
+
+def validate_phone_by_type(phone, phone_type):
+    """依 phone_type 驗證電話格式；phone 為空白時不驗證(留給呼叫端自行判斷是否必填)。"""
+    if not phone:
+        return
+    if phone_type == "mobile":
+        if not _MOBILE_PHONE_RE.match(phone):
+            raise ValidationError("手機格式不正確，需為 09 開頭的 10 碼數字，例如 0912345678", field="phone")
+    elif phone_type == "landline":
+        if not _LANDLINE_PHONE_RE.match(phone):
+            raise ValidationError("家電格式不正確，需為區碼加電話號碼，例如 02-12345678", field="phone")
+    else:
+        raise ValidationError("請選擇聯絡電話類型（手機或家電）", field="phone_type")
+
+
+def _validate_positive_int(value, label, max_value=None):
     try:
         value = int(value)
     except (TypeError, ValueError):
         raise ValidationError(f"{label}必須是正整數", field="quantity")
     if value <= 0:
         raise ValidationError(f"{label}必須是正整數", field="quantity")
+    if max_value is not None and value > max_value:
+        raise ValidationError(f"{label}不能大於 {max_value}", field="quantity")
     return value
+
+
+def _validate_purchase_price(value):
+    if value in (None, ""):
+        return None
+    try:
+        price = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValidationError("購買金額必須是數字", field="price")
+    if price > Decimal("1000000"):
+        raise ValidationError("購買金額不能大於 1,000,000", field="price")
+    return price
 
 
 # ---------- Student ----------
@@ -128,13 +167,14 @@ def get_purchase_or_404(purchase_id):
 def create_purchase(student, data):
     if not data.get("purchase_date"):
         raise ValidationError("購買日期為必填", field="purchase_date")
-    quantity = _validate_positive_int(data.get("quantity"), "購買堂數")
+    quantity = _validate_positive_int(data.get("quantity"), "購買堂數", max_value=9999)
+    price = _validate_purchase_price(data.get("price"))
 
     record = PurchaseRecord(
         student_id=student.id,
         purchase_date=data["purchase_date"],
         quantity=quantity,
-        price=data.get("price") or None,
+        price=price,
         notes=_blank_to_none(data.get("notes")),
     )
     db.session.add(record)
@@ -148,9 +188,9 @@ def update_purchase(record, data):
             raise ValidationError("購買日期為必填", field="purchase_date")
         record.purchase_date = data["purchase_date"]
     if "quantity" in data:
-        record.quantity = _validate_positive_int(data["quantity"], "購買堂數")
+        record.quantity = _validate_positive_int(data["quantity"], "購買堂數", max_value=9999)
     if "price" in data:
-        record.price = data["price"] or None
+        record.price = _validate_purchase_price(data["price"])
     if "notes" in data:
         record.notes = _blank_to_none(data["notes"])
     db.session.commit()
@@ -423,12 +463,17 @@ def register_student_account(data):
     if not name:
         raise ValidationError("姓名為必填", field="name")
 
+    phone = _blank_to_none(data.get("phone"))
+    phone_type = data.get("phone_type") or None
+    validate_phone_by_type(phone, phone_type)
+
     user = User(
         username=username,
         role="student",
         status="pending",
         name=name,
-        phone=_blank_to_none(data.get("phone")),
+        phone=phone,
+        phone_type=phone_type,
         birthday=data.get("birthday"),
         gender=data.get("gender") or None,
         goal=_blank_to_none(data.get("goal")),
@@ -450,12 +495,17 @@ def create_coach_account(data):
     if not name:
         raise ValidationError("姓名為必填", field="name")
 
+    phone = _blank_to_none(data.get("phone"))
+    phone_type = data.get("phone_type") or None
+    validate_phone_by_type(phone, phone_type)
+
     user = User(
         username=username,
         role="coach",
         status="active",
         name=name,
-        phone=_blank_to_none(data.get("phone")),
+        phone=phone,
+        phone_type=phone_type,
     )
     user.set_password(data["password"])
     db.session.add(user)
@@ -492,8 +542,27 @@ def set_account_status(user, target_status):
     if user.role == "admin":
         raise ValidationError("管理者帳號無法在此變更狀態", field="status")
     user.status = target_status
+    if target_status == "disabled" and user.student is not None:
+        user.student.status = "inactive"
+    if target_status == "active" and user.role == "student" and user.student_id is None:
+        create_student_from_registration(user)
     db.session.commit()
     return user
+
+
+def delete_account(user):
+    """僅能刪除已停用、非管理者的帳號；若對應學生名冊仍有剩餘課程則擋下，避免誤刪尚在使用中的學生資料。"""
+    if user.role == "admin":
+        raise ValidationError("管理者帳號無法刪除", field="role")
+    if user.status != "disabled":
+        raise ValidationError("僅能刪除已停用的帳號", field="status")
+    student = user.student
+    if student is not None and student.remaining > 0:
+        raise ValidationError("該學生尚有課程未完成，請勿刪除", field="student")
+    if student is not None:
+        db.session.delete(student)
+    db.session.delete(user)
+    db.session.commit()
 
 
 def set_account_role(user, target_role):

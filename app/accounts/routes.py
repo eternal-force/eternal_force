@@ -68,6 +68,22 @@ def change_status(user_id):
     return redirect(url_for("accounts.list_accounts"))
 
 
+@bp.route("/<int:user_id>/delete", methods=["POST"])
+@roles_required("admin")
+def delete_account(user_id):
+    user = _get_user_or_404(user_id)
+    form = DeleteConfirmForm()
+    if form.validate_on_submit():
+        try:
+            username = user.username
+            services.delete_account(user)
+            flash(f"帳號「{username}」已刪除。", "success")
+            return redirect(url_for("accounts.list_accounts"))
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
+    return redirect(url_for("accounts.view_account", user_id=user_id))
+
+
 @bp.route("/<int:user_id>/role", methods=["POST"])
 @roles_required("admin")
 def change_role(user_id):
@@ -110,6 +126,7 @@ def new_coach():
                 "password": form.password.data,
                 "name": form.name.data,
                 "phone": form.phone.data,
+                "phone_type": form.phone_type.data,
             }
         )
         flash(f"教練帳號「{user.username}」已建立並啟用。", "success")
