@@ -7,7 +7,7 @@
     <a href="{{ url_for('accounts.new_coach') }}" class="btn btn-primary">+ 新增教練帳號</a>
   </div>
 
-  <details class="card" open>
+  <details class="card">
     <summary class="card-section-summary">
       <h3 style="margin:0; display:inline;"><span class="section-toggle-arrow">&#9656;</span> 搜尋</h3>
     </summary>
@@ -15,6 +15,15 @@
       <div>
         <label for="search">依帳號或姓名搜尋</label>
         <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入帳號或姓名">
+      </div>
+      <div>
+        <label for="role">角色</label>
+        <select id="role" name="role">
+          <option value="" {% if not role %}selected{% endif %}>全部</option>
+          <option value="admin" {% if role == 'admin' %}selected{% endif %}>管理者</option>
+          <option value="coach" {% if role == 'coach' %}selected{% endif %}>教練</option>
+          <option value="student" {% if role == 'student' %}selected{% endif %}>學生</option>
+        </select>
       </div>
       <button type="submit" class="btn btn-primary">搜尋</button>
     </form>
@@ -25,7 +34,7 @@
 
   {% if accounts|length == 0 %}
     <div class="empty-state">
-      <p>{% if search %}沒有符合條件的帳號。{% else %}目前還沒有任何帳號。{% endif %}</p>
+      <p>{% if search or role %}沒有符合條件的帳號。{% else %}目前還沒有任何帳號。{% endif %}</p>
     </div>
   {% else %}
   <div class="card">

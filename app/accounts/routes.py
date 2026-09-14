@@ -20,11 +20,13 @@ def _get_user_or_404(user_id):
 @roles_required("admin", "coach")
 def list_accounts():
     search = request.args.get("search", "").strip()
-    accounts = services.list_accounts(search=search)
+    role = request.args.get("role", "").strip()
+    accounts = services.list_accounts(search=search, role=role)
     return render_template(
         "accounts/list.html",
         accounts=accounts,
         search=search,
+        role=role,
         delete_form=DeleteConfirmForm(),
     )
 

@@ -13,22 +13,27 @@
     {% endfor %}
   </datalist>
 
-  <form method="get" class="filter-bar card">
-    <div>
-      <label for="search">依項目名稱搜尋</label>
-      <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入關鍵字搜尋">
-    </div>
-    <div>
-      <label for="category">分類</label>
-      <select id="category" name="category">
-        <option value="" {% if not category %}selected{% endif %}>全部分類</option>
-        {% for c in categories %}
-          <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary">搜尋 / 篩選</button>
-  </form>
+  <details class="card">
+    <summary class="card-section-summary">
+      <h3 style="margin:0; display:inline;"><span class="section-toggle-arrow">&#9656;</span> 搜尋 / 篩選</h3>
+    </summary>
+    <form method="get" class="filter-bar" style="margin-top:10px;">
+      <div>
+        <label for="search">依項目名稱搜尋</label>
+        <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入關鍵字搜尋">
+      </div>
+      <div>
+        <label for="category">分類</label>
+        <select id="category" name="category">
+          <option value="" {% if not category %}selected{% endif %}>全部分類</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if category == c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">搜尋 / 篩選</button>
+    </form>
+  </details>
 
   {% if groups|length == 0 %}
     <div class="empty-state">
@@ -36,12 +41,12 @@
     </div>
   {% else %}
     {% for cat, items in groups %}
-      <div class="card stack">
-        <div class="row-between">
-          <span class="badge badge-muted">{{ cat }}</span>
+      <details class="card">
+        <summary class="row-between card-section-summary">
+          <span><span class="section-toggle-arrow">&#9656;</span> <span class="badge badge-muted">{{ cat }}</span></span>
           <span class="muted">{{ items|length }} 個項目</span>
-        </div>
-        <div class="record-list">
+        </summary>
+        <div class="record-list" style="margin-top:10px;">
           {% for item in items %}
             <div class="record-row exercise-row">
               <div>{{ item.name }}</div>
@@ -56,7 +61,7 @@
             </div>
           {% endfor %}
         </div>
-      </div>
+      </details>
     {% endfor %}
   {% endif %}
 </div>

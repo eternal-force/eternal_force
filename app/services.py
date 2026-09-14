@@ -499,11 +499,13 @@ def seed_exercise_catalog(seed_items):
 
 # ---------- User accounts ----------
 
-def list_accounts(search=None):
+def list_accounts(search=None, role=None):
     query = User.query
     if search:
         like = f"%{search.strip()}%"
         query = query.filter(db.or_(User.username.ilike(like), User.name.ilike(like)))
+    if role in ("admin", "coach", "student"):
+        query = query.filter(User.role == role)
     return query.order_by(
         db.case((User.status == "pending", 0), else_=1), User.created_at.desc()
     ).all()

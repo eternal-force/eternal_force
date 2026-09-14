@@ -77,6 +77,17 @@ def test_list_groups_by_category_and_supports_search_and_filter(logged_in_client
     assert "壺鈴深蹲" not in body
 
 
+def test_list_search_bar_and_category_groups_are_collapsed_by_default(logged_in_client, db):
+    db.session.add(ExerciseCatalogItem(category="暖身 / 伸展", name="鴿式伸展", sort_order=0))
+    db.session.commit()
+
+    resp = logged_in_client.get("/exercises/")
+    body = resp.get_data(as_text=True)
+    assert '<details class="card">' in body
+    assert '<details class="card" open>' not in body
+    assert "鴿式伸展" in body
+
+
 def test_edit_exercise_updates_category_and_name(logged_in_client, db):
     item = ExerciseCatalogItem(category="核心 / 旋轉", name="捲腹", sort_order=0)
     db.session.add(item)

@@ -129,10 +129,11 @@ def test_student_list_hides_add_student_button(logged_in_client):
     assert "王小明" in body
 
 
-def test_student_list_filter_bar_is_collapsible(logged_in_client):
+def test_student_list_filter_bar_is_collapsible_and_collapsed_by_default(logged_in_client):
     resp = logged_in_client.get("/students/")
     body = resp.get_data(as_text=True)
-    assert '<details class="card" open>' in body
+    assert '<details class="card">' in body
+    assert '<details class="card" open>' not in body
     assert 'name="search"' in body
     assert 'name="status"' in body
 
@@ -354,6 +355,22 @@ def test_student_detail_shows_labeled_phone_and_account(logged_in_client, active
     body = resp.get_data(as_text=True)
     assert f"手機：{active_student_user.phone}" in body
     assert f"帳號：{active_student_user.username}" in body
+
+
+def test_student_detail_shows_account_email_phone_in_order(logged_in_client, active_student_user, db):
+    from app.models import Student
+
+    student = db.session.get(Student, active_student_user.student_id)
+    student.email = "student@example.com"
+    db.session.commit()
+
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert f"信箱：{student.email}" in body
+
+    account_pos = body.find(f"帳號：{active_student_user.username}")
+    email_pos = body.find(f"信箱：{student.email}")
+    phone_pos = body.find(f"手機：{student.phone}")
+    assert -1 < account_pos < email_pos < phone_pos
 
 
 def test_update_student_name_syncs_linked_account_name(logged_in_client, active_student_user, db):

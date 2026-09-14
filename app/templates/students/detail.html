@@ -16,12 +16,14 @@
             <span class="badge badge-muted">停用</span>
           {% endif %}
         </h2>
-        <p class="muted" style="margin:0;">
-          {% if student.phone %}{{ '市話' if student.phone_type == 'landline' else '手機' }}：{{ student.phone }}　{% endif %}
-          {% if student.email %}{{ student.email }}{% endif %}
-        </p>
         {% if student.account %}
-          <p class="muted" style="margin:2px 0 0;">帳號：{{ student.account.username }}</p>
+          <p class="muted" style="margin:0;">帳號：{{ student.account.username }}</p>
+        {% endif %}
+        {% if student.email %}
+          <p class="muted" style="margin:2px 0 0;">信箱：{{ student.email }}</p>
+        {% endif %}
+        {% if student.phone %}
+          <p class="muted" style="margin:2px 0 0;">{{ '市話' if student.phone_type == 'landline' else '手機' }}：{{ student.phone }}</p>
         {% endif %}
       </div>
       <div class="btn-group">

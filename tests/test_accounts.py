@@ -18,10 +18,11 @@ def test_admin_sees_pending_account_in_list(logged_in_client, pending_student_us
     assert pending_student_user.username in resp.get_data(as_text=True)
 
 
-def test_accounts_list_filter_bar_is_collapsible(logged_in_client):
+def test_accounts_list_filter_bar_is_collapsible_and_collapsed_by_default(logged_in_client):
     resp = logged_in_client.get("/accounts/")
     body = resp.get_data(as_text=True)
-    assert '<details class="card" open>' in body
+    assert '<details class="card">' in body
+    assert '<details class="card" open>' not in body
     assert 'name="search"' in body
 
 
@@ -35,6 +36,23 @@ def test_accounts_list_search_by_username_or_name(logged_in_client, pending_stud
     body = resp.get_data(as_text=True)
     assert coach_user.username in body
     assert pending_student_user.username not in body
+
+
+def test_accounts_list_role_filter(logged_in_client, pending_student_user, coach_user):
+    resp = logged_in_client.get("/accounts/")
+    body = resp.get_data(as_text=True)
+    assert pending_student_user.username in body
+    assert coach_user.username in body
+
+    resp = logged_in_client.get("/accounts/", query_string={"role": "coach"})
+    body = resp.get_data(as_text=True)
+    assert coach_user.username in body
+    assert pending_student_user.username not in body
+
+    resp = logged_in_client.get("/accounts/", query_string={"role": "student"})
+    body = resp.get_data(as_text=True)
+    assert pending_student_user.username in body
+    assert coach_user.username not in body
 
 
 def test_view_account_shows_profile_details(logged_in_client, pending_student_user):
