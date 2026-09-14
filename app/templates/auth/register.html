@@ -45,6 +45,12 @@
           {% for e in form.name.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
         </div>
 
+        <div>
+          {{ form.email.label }}
+          {{ form.email(type="email") }}
+          {% for e in form.email.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
         <div class="form-grid cols-2">
           <div>
             {{ form.phone_type.label }}

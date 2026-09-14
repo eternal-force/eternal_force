@@ -310,17 +310,26 @@ button {
   line-height: 1;
 }
 
-/* ---------- Student list ---------- */
+/* ---------- List filter bars (students/accounts) ---------- */
 .filter-bar {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
 @media (min-width: 560px) {
   .filter-bar {
-    grid-template-columns: 2fr 1fr auto;
+    flex-direction: row;
+    flex-wrap: wrap;
     align-items: end;
+  }
+
+  .filter-bar > div {
+    flex: 1 1 160px;
+  }
+
+  .filter-bar > button {
+    flex: 0 0 auto;
   }
 }
 

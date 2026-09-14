@@ -18,11 +18,24 @@ def test_post_without_csrf_token_is_rejected(logged_in_client):
     assert resp.status_code == 400
 
 
-def test_student_name_is_escaped_in_rendered_html(logged_in_client):
-    payload = "<script>alert('xss')</script>"
-    create_student(logged_in_client, name=payload)
+def test_student_name_with_script_tag_is_rejected(logged_in_client):
+    from app.models import Student
 
-    resp = logged_in_client.get("/students/")
+    payload = "<script>alert('xss')</script>"
+    resp = create_student(logged_in_client, name=payload)
+
+    assert resp.status_code == 200
+    assert Student.query.filter_by(name=payload).first() is None
+
+
+def test_student_notes_is_escaped_in_rendered_html(logged_in_client):
+    from app.models import Student
+
+    payload = "<script>alert('xss')</script>"
+    create_student(logged_in_client, name="王小明", notes=payload)
+    student = Student.query.filter_by(name="王小明").first()
+
+    resp = logged_in_client.get(f"/students/{student.id}")
     body = resp.get_data(as_text=True)
 
     assert "<script>alert" not in body

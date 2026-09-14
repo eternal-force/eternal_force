@@ -44,20 +44,24 @@ def list_students():
 def new_student():
     form = StudentForm(status="active")
     if form.validate_on_submit():
-        student = services.create_student(
-            {
-                "name": form.name.data,
-                "phone": form.phone.data,
-                "email": form.email.data,
-                "birthday": form.birthday.data,
-                "gender": form.gender.data,
-                "enrollment_date": form.enrollment_date.data,
-                "status": form.status.data,
-                "notes": form.notes.data,
-            }
-        )
-        flash(f"學生「{student.name}」已建立。", "success")
-        return redirect(url_for("students.student_detail", student_id=student.id))
+        try:
+            student = services.create_student(
+                {
+                    "name": form.name.data,
+                    "phone": form.phone.data,
+                    "phone_type": form.phone_type.data,
+                    "email": form.email.data,
+                    "birthday": form.birthday.data,
+                    "gender": form.gender.data,
+                    "enrollment_date": form.enrollment_date.data,
+                    "status": form.status.data,
+                    "notes": form.notes.data,
+                }
+            )
+            flash(f"學生「{student.name}」已建立。", "success")
+            return redirect(url_for("students.student_detail", student_id=student.id))
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
     return render_template("students/form.html", form=form, mode="new")
 
 
@@ -87,6 +91,7 @@ def edit_student(student_id):
         data = {
             "name": form.name.data,
             "phone": form.phone.data,
+            "phone_type": form.phone_type.data,
             "email": form.email.data,
             "birthday": form.birthday.data,
             "gender": form.gender.data,
@@ -95,9 +100,12 @@ def edit_student(student_id):
         }
         if can_edit_status:
             data["status"] = form.status.data
-        services.update_student(student, data)
-        flash("學生資料已更新。", "success")
-        return redirect(url_for("students.student_detail", student_id=student.id))
+        try:
+            services.update_student(student, data)
+            flash("學生資料已更新。", "success")
+            return redirect(url_for("students.student_detail", student_id=student.id))
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
     return render_template(
         "students/form.html", form=form, mode="edit", student=student, can_edit_status=can_edit_status
     )

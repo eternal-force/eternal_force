@@ -2,37 +2,42 @@
 {% block title %}學生列表{% endblock %}
 {% block content %}
 <div class="stack">
-  <div class="row-between">
-    <h2 style="margin:0;">學生列表</h2>
-    <a href="{{ url_for('students.new_student') }}" class="btn btn-primary">+ 新增學生</a>
-  </div>
-
-  <form method="get" class="filter-bar card">
-    <div>
-      <label for="search">依姓名搜尋</label>
-      <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入學生姓名">
-    </div>
-    <div>
-      <label for="status">在籍狀態</label>
-      <select id="status" name="status">
-        <option value="" {% if not status %}selected{% endif %}>全部</option>
-        <option value="active" {% if status == 'active' %}selected{% endif %}>在籍</option>
-        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>停用</option>
-      </select>
-    </div>
-    <button type="submit" class="btn btn-primary">搜尋 / 篩選</button>
-  </form>
+  <details class="card" open>
+    <summary class="card-section-summary">
+      <h3 style="margin:0; display:inline;"><span class="section-toggle-arrow">&#9656;</span> 搜尋 / 篩選</h3>
+    </summary>
+    <form method="get" class="filter-bar" style="margin-top:10px;">
+      <div>
+        <label for="search">依姓名搜尋</label>
+        <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入學生姓名">
+      </div>
+      <div>
+        <label for="status">在籍狀態</label>
+        <select id="status" name="status">
+          <option value="" {% if not status %}selected{% endif %}>全部</option>
+          <option value="active" {% if status == 'active' %}selected{% endif %}>在籍</option>
+          <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>停用</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">搜尋 / 篩選</button>
+    </form>
+  </details>
 
   {% if students|length == 0 %}
     <div class="empty-state">
-      <p>{% if search or status %}沒有符合條件的學生。{% else %}目前還沒有學生資料，點選「新增學生」開始建立。{% endif %}</p>
+      <p>{% if search or status %}沒有符合條件的學生。{% else %}目前還沒有學生資料。{% endif %}</p>
     </div>
   {% else %}
     <div class="student-grid">
       {% for s in students %}
         <a href="{{ url_for('students.student_detail', student_id=s.id) }}" class="student-card">
           <div class="row-between" style="margin-bottom:6px; gap:8px;">
-            <h3 style="margin:0;">{{ s.name }}</h3>
+            <div>
+              <h3 style="margin:0;">{{ s.name }}</h3>
+              {% if s.account %}
+                <div class="muted" style="font-size:0.75rem; margin-top:2px;">{{ s.account.username }}</div>
+              {% endif %}
+            </div>
             {% if s.status == 'active' %}
               <span class="badge badge-success">在籍</span>
             {% else %}

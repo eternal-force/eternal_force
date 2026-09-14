@@ -27,6 +27,7 @@ class User(UserMixin, db.Model):
         nullable=False,
     )
     name = db.Column(db.String(120))
+    email = db.Column(db.String(255))
     phone = db.Column(db.String(40))
     phone_type = db.Column(
         db.Enum("mobile", "landline", name="user_phone_type_enum", native_enum=False)
@@ -39,7 +40,9 @@ class User(UserMixin, db.Model):
     student_id = db.Column(
         db.Integer, db.ForeignKey("students.id", ondelete="SET NULL"), unique=True
     )
-    student = db.relationship("Student", foreign_keys=[student_id])
+    student = db.relationship(
+        "Student", foreign_keys=[student_id], backref=db.backref("account", uselist=False)
+    )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
     def set_password(self, raw_password):
@@ -59,6 +62,9 @@ class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(40))
+    phone_type = db.Column(
+        db.Enum("mobile", "landline", name="student_phone_type_enum", native_enum=False)
+    )
     email = db.Column(db.String(255))
     birthday = db.Column(db.Date)
     gender = db.Column(
@@ -106,6 +112,7 @@ class Student(db.Model):
             "student_id": self.id,
             "name": self.name,
             "phone": self.phone,
+            "phone_type": self.phone_type,
             "email": self.email,
             "birthday": self.birthday.isoformat() if self.birthday else None,
             "gender": self.gender,

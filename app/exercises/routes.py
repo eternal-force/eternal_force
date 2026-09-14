@@ -87,6 +87,9 @@ def delete_exercise(item_id):
     form = DeleteConfirmForm()
     if form.validate_on_submit():
         name = item.name
-        services.delete_exercise_catalog_item(item)
-        flash(f"訓練項目「{name}」已刪除。", "success")
+        try:
+            services.delete_exercise_catalog_item(item)
+            flash(f"訓練項目「{name}」已刪除。", "success")
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
     return redirect(url_for("exercises.list_exercises"))

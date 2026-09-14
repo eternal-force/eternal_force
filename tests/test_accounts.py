@@ -18,6 +18,13 @@ def test_admin_sees_pending_account_in_list(logged_in_client, pending_student_us
     assert pending_student_user.username in resp.get_data(as_text=True)
 
 
+def test_accounts_list_filter_bar_is_collapsible(logged_in_client):
+    resp = logged_in_client.get("/accounts/")
+    body = resp.get_data(as_text=True)
+    assert '<details class="card" open>' in body
+    assert 'name="search"' in body
+
+
 def test_accounts_list_search_by_username_or_name(logged_in_client, pending_student_user, coach_user):
     resp = logged_in_client.get("/accounts/", query_string={"search": pending_student_user.name})
     body = resp.get_data(as_text=True)
@@ -125,6 +132,27 @@ def test_status_toggle_both_directions(logged_in_client, active_student_user, db
     assert active_student_user.status == "active"
 
 
+def test_reactivating_account_reactivates_linked_student(logged_in_client, active_student_user, db):
+    student = db.session.get(Student, active_student_user.student_id)
+
+    resp = logged_in_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+
+    logged_in_client.post(
+        f"/accounts/{active_student_user.id}/status",
+        data={"target_status": "disabled", "csrf_token": token},
+    )
+    db.session.refresh(student)
+    assert student.status == "inactive"
+
+    logged_in_client.post(
+        f"/accounts/{active_student_user.id}/status",
+        data={"target_status": "active", "csrf_token": token},
+    )
+    db.session.refresh(student)
+    assert student.status == "active"
+
+
 def test_admin_account_cannot_have_status_changed(logged_in_client, db):
     other_admin = User(username="admin2", role="admin", status="active")
     other_admin.set_password("OtherAdmin123")
@@ -198,6 +226,55 @@ def test_coach_cannot_change_account_role(coach_client, active_student_user):
         data={"target_role": "coach", "csrf_token": token},
     )
     assert resp.status_code == 403
+
+
+def test_coach_does_not_see_deactivate_button_in_accounts_list(coach_client, active_student_user):
+    body = coach_client.get("/accounts/").get_data(as_text=True)
+    assert ">停用<" not in body
+
+
+def test_admin_sees_deactivate_button_in_accounts_list(logged_in_client, active_student_user):
+    body = logged_in_client.get("/accounts/").get_data(as_text=True)
+    assert ">停用<" in body
+
+
+def test_new_coach_stores_email_and_shown_on_detail_page(logged_in_client, db):
+    resp = logged_in_client.get("/accounts/new-coach")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    logged_in_client.post(
+        "/accounts/new-coach",
+        data={
+            "username": "coach_with_email",
+            "password": "NewCoach123",
+            "name": "新教練",
+            "email": "coach@example.com",
+            "phone_type": "mobile",
+            "phone": "0955555555",
+            "csrf_token": token,
+        },
+        follow_redirects=True,
+    )
+
+    coach = User.query.filter_by(username="coach_with_email").first()
+    assert coach.email == "coach@example.com"
+
+    detail = logged_in_client.get(f"/accounts/{coach.id}")
+    assert "coach@example.com" in detail.get_data(as_text=True)
+
+
+def test_new_coach_duplicate_username_case_insensitive_rejected(logged_in_client, active_student_user):
+    resp = logged_in_client.get("/accounts/new-coach")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    resp = logged_in_client.post(
+        "/accounts/new-coach",
+        data={
+            "username": active_student_user.username.upper(),
+            "password": "NewCoach123",
+            "name": "新教練",
+            "csrf_token": token,
+        },
+    )
+    assert "此帳號已被使用" in resp.get_data(as_text=True)
 
 
 def test_new_coach_is_active_immediately_without_verification(logged_in_client, db):

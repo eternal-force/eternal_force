@@ -2,7 +2,9 @@
 {% block title %}{{ student.name }}{% endblock %}
 {% block content %}
 <div class="stack">
+  {% if current_user.role != 'student' %}
   <a class="back-link" href="{{ url_for('students.list_students') }}">&larr; 回學生列表</a>
+  {% endif %}
 
   <div class="card">
     <div class="row-between">
@@ -15,13 +17,16 @@
           {% endif %}
         </h2>
         <p class="muted" style="margin:0;">
-          {% if student.phone %}{{ student.phone }}　{% endif %}
+          {% if student.phone %}{{ '市話' if student.phone_type == 'landline' else '手機' }}：{{ student.phone }}　{% endif %}
           {% if student.email %}{{ student.email }}{% endif %}
         </p>
+        {% if student.account %}
+          <p class="muted" style="margin:2px 0 0;">帳號：{{ student.account.username }}</p>
+        {% endif %}
       </div>
       <div class="btn-group">
         <a class="btn btn-sm" href="{{ url_for('students.edit_student', student_id=student.id) }}">編輯資料</a>
-        {% if current_user.role != 'student' %}
+        {% if current_user.role == 'admin' or (current_user.role == 'coach' and student.status != 'active') %}
         <form method="post" action="{{ url_for('students.change_status', student_id=student.id) }}"
               data-confirm="確定要{{ '停用' if student.status == 'active' else '重新啟用' }}這位學生嗎？">
           {{ delete_form.hidden_tag() }}
@@ -31,7 +36,7 @@
       </div>
     </div>
 
-    {% if student.notes %}<p class="muted" style="margin-top:10px;">備註：{{ student.notes }}</p>{% endif %}
+    {% if student.notes %}<p class="muted" style="margin-top:10px;">期望運動達成的效益：{{ student.notes }}</p>{% endif %}
 
     <div class="stats" style="margin-top:14px;">
       <div>

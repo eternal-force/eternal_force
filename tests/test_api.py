@@ -1,5 +1,7 @@
 def test_api_create_and_get_student(logged_in_client):
-    resp = logged_in_client.post("/api/students", json={"name": "王小明", "phone": "0900000000"})
+    resp = logged_in_client.post(
+        "/api/students", json={"name": "王小明", "phone": "0900000000", "phone_type": "mobile"}
+    )
     assert resp.status_code == 201
     body = resp.get_json()
     assert body["name"] == "王小明"

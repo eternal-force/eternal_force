@@ -49,6 +49,7 @@ def register():
                 "username": form.username.data,
                 "password": form.password.data,
                 "name": form.name.data,
+                "email": form.email.data,
                 "phone": form.phone.data,
                 "phone_type": form.phone_type.data,
                 "birthday": form.birthday.data,

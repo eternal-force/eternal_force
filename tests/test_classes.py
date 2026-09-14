@@ -283,6 +283,75 @@ def test_add_class_with_negative_sets_shows_error(logged_in_client, db):
     assert ClassExercise.query.count() == 0
 
 
+def test_add_class_weight_kg_cannot_exceed_200(logged_in_client, db):
+    from app.models import ClassExercise
+
+    student = _student_with_quota(logged_in_client, db)
+
+    resp = add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{
+            "exercise_category": "下肢(蹲類)訓練",
+            "exercise_name": "壺鈴深蹲",
+            "exercise_weight_kg": "201",
+        },
+    )
+    assert "公斤數不能大於 200" in resp.get_data(as_text=True)
+    assert ClassExercise.query.count() == 0
+
+    add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{
+            "exercise_category": "下肢(蹲類)訓練",
+            "exercise_name": "壺鈴深蹲",
+            "exercise_weight_kg": "200",
+        },
+    )
+    assert ClassExercise.query.count() == 1
+
+
+def test_add_class_sets_cannot_exceed_100(logged_in_client, db):
+    from app.models import ClassExercise
+
+    student = _student_with_quota(logged_in_client, db)
+
+    resp = add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{
+            "exercise_category": "下肢(蹲類)訓練",
+            "exercise_name": "壺鈴深蹲",
+            "exercise_sets": "101",
+        },
+    )
+    assert "組數不能大於 100" in resp.get_data(as_text=True)
+    assert ClassExercise.query.count() == 0
+
+
+def test_add_class_reps_cannot_exceed_100(logged_in_client, db):
+    from app.models import ClassExercise
+
+    student = _student_with_quota(logged_in_client, db)
+
+    resp = add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{
+            "exercise_category": "下肢(蹲類)訓練",
+            "exercise_name": "壺鈴深蹲",
+            "exercise_reps": "101",
+        },
+    )
+    assert "次數不能大於 100" in resp.get_data(as_text=True)
+    assert ClassExercise.query.count() == 0
+
+
 def test_add_class_with_multiple_exercises_preserves_order(logged_in_client, db):
     from app.models import ClassRecord
 

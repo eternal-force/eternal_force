@@ -40,15 +40,15 @@
     <div class="form-grid cols-3" style="margin-top:8px;">
       <div>
         <span class="field-label-mobile">公斤數</span>
-        <input type="number" name="exercise_weight_kg" value="{{ row.weight_kg }}" min="0" step="0.5" placeholder="kg">
+        <input type="number" name="exercise_weight_kg" value="{{ row.weight_kg }}" min="0" max="200" step="0.5" placeholder="kg">
       </div>
       <div>
         <span class="field-label-mobile">組數</span>
-        <input type="number" name="exercise_sets" value="{{ row.sets }}" min="0" step="1" placeholder="組">
+        <input type="number" name="exercise_sets" value="{{ row.sets }}" min="0" max="100" step="1" placeholder="組">
       </div>
       <div>
         <span class="field-label-mobile">次數</span>
-        <input type="number" name="exercise_reps" value="{{ row.reps }}" min="0" step="1" placeholder="次">
+        <input type="number" name="exercise_reps" value="{{ row.reps }}" min="0" max="100" step="1" placeholder="次">
       </div>
     </div>
     <div style="margin-top:8px;">

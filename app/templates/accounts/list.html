@@ -7,13 +7,18 @@
     <a href="{{ url_for('accounts.new_coach') }}" class="btn btn-primary">+ 新增教練帳號</a>
   </div>
 
-  <form method="get" class="filter-bar card">
-    <div>
-      <label for="search">依帳號或姓名搜尋</label>
-      <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入帳號或姓名">
-    </div>
-    <button type="submit" class="btn btn-primary">搜尋</button>
-  </form>
+  <details class="card" open>
+    <summary class="card-section-summary">
+      <h3 style="margin:0; display:inline;"><span class="section-toggle-arrow">&#9656;</span> 搜尋</h3>
+    </summary>
+    <form method="get" class="filter-bar" style="margin-top:10px;">
+      <div>
+        <label for="search">依帳號或姓名搜尋</label>
+        <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入帳號或姓名">
+      </div>
+      <button type="submit" class="btn btn-primary">搜尋</button>
+    </form>
+  </details>
 
   {% set role_label = {"admin": "管理者", "coach": "教練", "student": "學生"} %}
   {% set status_label = {"pending": "待驗證", "active": "啟用中", "disabled": "已停用"} %}
@@ -63,7 +68,7 @@
                 <input type="hidden" name="target_status" value="disabled">
                 <button type="submit" class="btn btn-sm btn-danger">拒絕</button>
               </form>
-            {% elif u.role != 'admin' and u.status == 'active' %}
+            {% elif u.role != 'admin' and u.status == 'active' and current_user.role == 'admin' %}
               <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}"
                     data-confirm="確定要停用帳號「{{ u.username }}」嗎？">
                 {{ delete_form.hidden_tag() }}

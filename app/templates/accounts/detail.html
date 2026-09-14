@@ -7,7 +7,7 @@
   {% set role_label = {"admin": "管理者", "coach": "教練", "student": "學生"} %}
   {% set status_label = {"pending": "待驗證", "active": "啟用中", "disabled": "已停用"} %}
   {% set gender_label = {"male": "男", "female": "女", "other": "其他"} %}
-  {% set phone_type_label = {"mobile": "手機", "landline": "家電"} %}
+  {% set phone_type_label = {"mobile": "手機", "landline": "市話"} %}
 
   <div class="card">
     <div class="row-between">
@@ -29,6 +29,10 @@
       <div>
         <div class="muted" style="font-size:0.78rem;">姓名</div>
         <div>{{ account.name or '-' }}</div>
+      </div>
+      <div>
+        <div class="muted" style="font-size:0.78rem;">信箱</div>
+        <div>{{ account.email or '-' }}</div>
       </div>
       <div>
         <div class="muted" style="font-size:0.78rem;">連絡電話</div>

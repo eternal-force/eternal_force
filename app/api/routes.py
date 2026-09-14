@@ -235,5 +235,8 @@ def api_update_exercise_catalog_item(item_id):
 @roles_required("admin", "coach")
 def api_delete_exercise_catalog_item(item_id):
     item = services.get_exercise_catalog_item_or_404(item_id)
-    services.delete_exercise_catalog_item(item)
+    try:
+        services.delete_exercise_catalog_item(item)
+    except services.ValidationError as exc:
+        return jsonify({"error": exc.message, "field": exc.field}), 400
     return "", 204

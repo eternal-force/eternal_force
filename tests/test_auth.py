@@ -83,6 +83,18 @@ def test_register_duplicate_username_rejected(client, admin_user):
     assert "此帳號已被使用" in resp.get_data(as_text=True)
 
 
+def test_register_duplicate_username_case_insensitive_rejected(client, admin_user):
+    resp = _register(client, username=ADMIN_USERNAME.upper())
+    assert "此帳號已被使用" in resp.get_data(as_text=True)
+    assert User.query.filter_by(username=ADMIN_USERNAME.upper()).first() is None
+
+
+def test_register_stores_email(client, db):
+    _register(client, email="student@example.com")
+    user = User.query.filter_by(username="new_student").first()
+    assert user.email == "student@example.com"
+
+
 def test_login_with_pending_account_is_refused(client, pending_student_user):
     resp = login(client, PENDING_STUDENT_USERNAME, PENDING_STUDENT_PASSWORD)
     assert "尚待管理者驗證" in resp.get_data(as_text=True)

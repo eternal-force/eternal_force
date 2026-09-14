@@ -6,6 +6,7 @@ def create_student(client, **overrides):
     token = get_csrf_token(resp.get_data(as_text=True))
     data = {
         "name": "王小明",
+        "phone_type": "",
         "phone": "",
         "email": "",
         "birthday": "",
@@ -36,6 +37,159 @@ def test_create_student_success_redirects_to_detail(logged_in_client):
     body = resp.get_data(as_text=True)
     assert "已建立" in body
     assert "王小明" in body
+
+
+def test_create_student_rejects_special_characters_in_name(logged_in_client):
+    resp = create_student(logged_in_client, name="王小明@!")
+    assert resp.status_code == 200
+    assert "姓名不能包含特殊符號" in resp.get_data(as_text=True)
+
+
+def test_create_student_rejects_name_over_20_chars(logged_in_client):
+    resp = create_student(logged_in_client, name="a" * 21)
+    assert resp.status_code == 200
+    assert "姓名不能超過 20 個字" in resp.get_data(as_text=True)
+
+
+def test_create_student_allows_exactly_20_chars(logged_in_client):
+    resp = create_student(logged_in_client, name="a" * 20)
+    assert "已建立" in resp.get_data(as_text=True)
+
+
+def test_create_student_with_landline_shows_landline_label(logged_in_client, db):
+    from app.models import Student
+
+    create_student(logged_in_client, phone_type="landline", phone="02-12345678")
+    student = Student.query.filter_by(name="王小明").first()
+    assert student.phone_type == "landline"
+
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert "市話：02-12345678" in body
+    assert "手機：02-12345678" not in body
+
+
+def test_create_student_with_mobile_shows_mobile_label(logged_in_client, db):
+    from app.models import Student
+
+    create_student(logged_in_client, phone_type="mobile", phone="0912345678")
+    student = Student.query.filter_by(name="王小明").first()
+    assert student.phone_type == "mobile"
+
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert "手機：0912345678" in body
+
+
+def test_create_student_phone_requires_matching_format(logged_in_client):
+    resp = create_student(logged_in_client, phone_type="mobile", phone="02-12345678")
+    assert "手機格式不正確" in resp.get_data(as_text=True)
+
+
+def test_edit_student_phone_type_updates_detail_label(logged_in_client, db):
+    from app.models import Student
+
+    create_student(logged_in_client, phone_type="mobile", phone="0912345678")
+    student = Student.query.filter_by(name="王小明").first()
+
+    edit_page = logged_in_client.get(f"/students/{student.id}/edit")
+    token = get_csrf_token(edit_page.get_data(as_text=True))
+    logged_in_client.post(
+        f"/students/{student.id}/edit",
+        data={
+            "name": "王小明",
+            "phone_type": "landline",
+            "phone": "02-12345678",
+            "email": "",
+            "birthday": "",
+            "gender": "",
+            "enrollment_date": "",
+            "status": "active",
+            "notes": "",
+            "csrf_token": token,
+        },
+        follow_redirects=True,
+    )
+
+    db.session.refresh(student)
+    assert student.phone_type == "landline"
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert "市話：02-12345678" in body
+
+
+def test_student_list_heading_is_hidden(logged_in_client):
+    resp = logged_in_client.get("/students/")
+    body = resp.get_data(as_text=True)
+    assert "<h2" not in body
+
+
+def test_student_list_hides_add_student_button(logged_in_client):
+    create_student(logged_in_client, name="王小明")
+    resp = logged_in_client.get("/students/")
+    body = resp.get_data(as_text=True)
+    assert "+ 新增學生" not in body
+    assert "王小明" in body
+
+
+def test_student_list_filter_bar_is_collapsible(logged_in_client):
+    resp = logged_in_client.get("/students/")
+    body = resp.get_data(as_text=True)
+    assert '<details class="card" open>' in body
+    assert 'name="search"' in body
+    assert 'name="status"' in body
+
+
+def test_student_detail_shows_goal_label_without_duplicate_prefix(logged_in_client, db):
+    from app.models import Student
+
+    create_student(logged_in_client, notes="增肌減脂")
+    student = Student.query.filter_by(name="王小明").first()
+
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert "期望運動達成的效益：增肌減脂" in body
+    assert "備註" not in body
+    assert body.count("期望運動達成") == 1
+
+
+def test_registration_goal_becomes_student_notes_without_prefix(client, db, admin_user):
+    from app.models import Student, User
+    from tests.conftest import login
+
+    resp = client.get("/register")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    client.post(
+        "/register",
+        data={
+            "username": "goal_student",
+            "password": "GoalStudent123",
+            "confirm_password": "GoalStudent123",
+            "name": "目標學生",
+            "email": "goal_student@example.com",
+            "phone_type": "landline",
+            "phone": "02-12345678",
+            "birthday": "2001-01-01",
+            "gender": "female",
+            "goal": "增肌",
+            "csrf_token": token,
+        },
+        follow_redirects=True,
+    )
+
+    login(client)
+    user = User.query.filter_by(username="goal_student").first()
+    token = get_csrf_token(client.get("/accounts/").get_data(as_text=True))
+    client.post(f"/accounts/{user.id}/verify", data={"csrf_token": token}, follow_redirects=True)
+
+    student = db.session.get(Student, user.student_id)
+    assert student.notes == "增肌"
+    assert student.phone_type == "landline"
+    assert student.email == "goal_student@example.com"
+
+    body = client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert "期望運動達成的效益：增肌" in body
+    assert "市話：02-12345678" in body
+
+    edit_page = client.get(f"/students/{student.id}/edit").get_data(as_text=True)
+    assert "goal_student@example.com" in edit_page
+    assert "信箱" in edit_page
 
 
 def test_student_list_search_and_status_filter(logged_in_client):
@@ -152,6 +306,89 @@ def test_student_role_list_redirects_to_own_detail(student_client, active_studen
     assert f"/students/{active_student_user.student_id}" in resp.headers["Location"]
 
 
+def test_student_role_does_not_see_back_to_list_link(student_client, active_student_user):
+    resp = student_client.get(f"/students/{active_student_user.student_id}")
+    body = resp.get_data(as_text=True)
+    assert "回學生列表" not in body
+
+
+def test_admin_sees_back_to_list_link(logged_in_client, db):
+    create_student(logged_in_client, name="王小明")
+    from app.models import Student
+
+    student = Student.query.filter_by(name="王小明").first()
+    assert "回學生列表" in logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+
+
+def test_coach_sees_back_to_list_link(coach_client, db):
+    from app import services
+
+    student = services.create_student({"name": "王小明", "status": "active"})
+    assert "回學生列表" in coach_client.get(f"/students/{student.id}").get_data(as_text=True)
+
+
+def test_coach_does_not_see_deactivate_button_but_sees_reactivate(coach_client, db):
+    from app import services
+
+    student = services.create_student({"name": "王小明", "status": "active"})
+
+    body = coach_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert ">停用<" not in body
+
+    services.set_student_status(student, "inactive")
+    db.session.refresh(student)
+    assert student.status == "inactive"
+
+    body = coach_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert ">重新啟用<" in body
+
+
+def test_student_card_shows_linked_account_username(logged_in_client, active_student_user, db):
+    resp = logged_in_client.get("/students/")
+    body = resp.get_data(as_text=True)
+    assert active_student_user.username in body
+
+
+def test_student_detail_shows_labeled_phone_and_account(logged_in_client, active_student_user, db):
+    resp = logged_in_client.get(f"/students/{active_student_user.student_id}")
+    body = resp.get_data(as_text=True)
+    assert f"手機：{active_student_user.phone}" in body
+    assert f"帳號：{active_student_user.username}" in body
+
+
+def test_update_student_name_syncs_linked_account_name(logged_in_client, active_student_user, db):
+    from app.models import Student
+
+    student = db.session.get(Student, active_student_user.student_id)
+
+    edit_page = logged_in_client.get(f"/students/{student.id}/edit")
+    token = get_csrf_token(edit_page.get_data(as_text=True))
+    logged_in_client.post(
+        f"/students/{student.id}/edit",
+        data={
+            "name": "李小華新名字",
+            "phone_type": "mobile",
+            "phone": student.phone or "",
+            "email": "",
+            "birthday": "",
+            "gender": "",
+            "enrollment_date": "",
+            "status": "active",
+            "notes": "",
+            "csrf_token": token,
+        },
+        follow_redirects=True,
+    )
+
+    db.session.refresh(student)
+    db.session.refresh(active_student_user)
+    assert student.name == "李小華新名字"
+    assert active_student_user.name == "李小華新名字"
+
+    account_page = logged_in_client.get(f"/accounts/{active_student_user.id}")
+    assert "李小華新名字" in account_page.get_data(as_text=True)
+
+
 def test_student_role_cannot_view_other_students_detail(student_client, db):
     from app.models import Student
 
@@ -189,6 +426,7 @@ def test_student_role_can_edit_own_student_data_but_not_status(student_client, a
         f"/students/{active_student_user.student_id}/edit",
         data={
             "name": "李小華",
+            "phone_type": "mobile",
             "phone": "0955555555",
             "email": "changed@example.com",
             "status": "inactive",  # 竄改嘗試：學生不應能透過此欄位變更在籍狀態

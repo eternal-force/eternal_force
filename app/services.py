@@ -25,13 +25,34 @@ def _blank_to_none(value):
     return value or None
 
 
+def username_exists(username):
+    """大小寫不敏感比對，避免「Alice」與「alice」被當成不同帳號重複註冊/新增。"""
+    return (
+        User.query.filter(db.func.lower(User.username) == (username or "").strip().lower()).first()
+        is not None
+    )
+
+
+# ---------- 學生姓名格式限制 ----------
+
+_STUDENT_NAME_MAX_LENGTH = 20
+_STUDENT_NAME_RE = re.compile(r"^[A-Za-z0-9一-鿿\s]+$")
+
+
+def validate_student_name(name):
+    if len(name) > _STUDENT_NAME_MAX_LENGTH:
+        raise ValidationError(f"姓名不能超過 {_STUDENT_NAME_MAX_LENGTH} 個字", field="name")
+    if not _STUDENT_NAME_RE.match(name):
+        raise ValidationError("姓名不能包含特殊符號", field="name")
+
+
 # ---------- 帳號聯絡電話格式(REQ-006) ----------
 
-PHONE_TYPE_LABELS = {"mobile": "手機", "landline": "家電"}
+PHONE_TYPE_LABELS = {"mobile": "手機", "landline": "市話"}
 
 # 手機：09 開頭的 10 碼數字（台灣門號格式，例如 0912345678）。
 _MOBILE_PHONE_RE = re.compile(r"^09\d{8}$")
-# 家電：0 開頭的區碼（1~2 碼，但排除手機開頭的 09）加上 6~8 碼電話號碼，允許中間以「-」分隔（例如 02-12345678、049-123456）。
+# 市話：0 開頭的區碼（1~2 碼，但排除手機開頭的 09）加上 6~8 碼電話號碼，允許中間以「-」分隔（例如 02-12345678、049-123456）。
 _LANDLINE_PHONE_RE = re.compile(r"^(?!09)0\d{1,2}-?\d{6,8}$")
 
 
@@ -44,9 +65,9 @@ def validate_phone_by_type(phone, phone_type):
             raise ValidationError("手機格式不正確，需為 09 開頭的 10 碼數字，例如 0912345678", field="phone")
     elif phone_type == "landline":
         if not _LANDLINE_PHONE_RE.match(phone):
-            raise ValidationError("家電格式不正確，需為區碼加電話號碼，例如 02-12345678", field="phone")
+            raise ValidationError("市話格式不正確，需為區碼加電話號碼，例如 02-12345678", field="phone")
     else:
-        raise ValidationError("請選擇聯絡電話類型（手機或家電）", field="phone_type")
+        raise ValidationError("請選擇聯絡電話類型（手機或市話）", field="phone_type")
 
 
 def _validate_positive_int(value, label, max_value=None):
@@ -95,10 +116,16 @@ def create_student(data):
     name = (data.get("name") or "").strip()
     if not name:
         raise ValidationError("姓名為必填", field="name")
+    validate_student_name(name)
+
+    phone = _blank_to_none(data.get("phone"))
+    phone_type = data.get("phone_type") or None
+    validate_phone_by_type(phone, phone_type)
 
     student = Student(
         name=name,
-        phone=_blank_to_none(data.get("phone")),
+        phone=phone,
+        phone_type=phone_type,
         email=_blank_to_none(data.get("email")),
         birthday=data.get("birthday"),
         gender=data.get("gender") or None,
@@ -116,8 +143,17 @@ def update_student(student, data):
         name = (data["name"] or "").strip()
         if not name:
             raise ValidationError("姓名為必填", field="name")
+        validate_student_name(name)
         student.name = name
-    for key in ("phone", "email", "notes"):
+        if student.account is not None:
+            student.account.name = name
+    if "phone" in data or "phone_type" in data:
+        phone = _blank_to_none(data["phone"]) if "phone" in data else student.phone
+        phone_type = (data["phone_type"] if "phone_type" in data else student.phone_type) or None
+        validate_phone_by_type(phone, phone_type)
+        student.phone = phone
+        student.phone_type = phone_type
+    for key in ("email", "notes"):
         if key in data:
             setattr(student, key, _blank_to_none(data[key]))
     for key in ("birthday", "enrollment_date", "gender"):
@@ -176,7 +212,7 @@ def get_purchase_or_404(purchase_id):
 def create_purchase(student, data):
     if not data.get("purchase_date"):
         raise ValidationError("購買日期為必填", field="purchase_date")
-    quantity = _validate_positive_int(data.get("quantity"), "購買堂數", max_value=9999)
+    quantity = _validate_positive_int(data.get("quantity"), "購買堂數", max_value=999)
     price = _validate_purchase_price(data.get("price"))
 
     record = PurchaseRecord(
@@ -197,7 +233,7 @@ def update_purchase(record, data):
             raise ValidationError("購買日期為必填", field="purchase_date")
         record.purchase_date = data["purchase_date"]
     if "quantity" in data:
-        record.quantity = _validate_positive_int(data["quantity"], "購買堂數", max_value=9999)
+        record.quantity = _validate_positive_int(data["quantity"], "購買堂數", max_value=999)
     if "price" in data:
         record.price = _validate_purchase_price(data["price"])
     if "notes" in data:
@@ -220,7 +256,7 @@ def get_class_record_or_404(record_id):
     return record
 
 
-def _parse_optional_int(value, label):
+def _parse_optional_int(value, label, max_value=None):
     if isinstance(value, str):
         value = value.strip()
     if value in (None, ""):
@@ -231,10 +267,12 @@ def _parse_optional_int(value, label):
         raise ValidationError(f"{label}必須是整數", field="exercises")
     if parsed < 0:
         raise ValidationError(f"{label}不能是負數", field="exercises")
+    if max_value is not None and parsed > max_value:
+        raise ValidationError(f"{label}不能大於 {max_value}", field="exercises")
     return parsed
 
 
-def _parse_optional_decimal(value, label):
+def _parse_optional_decimal(value, label, max_value=None):
     if isinstance(value, str):
         value = value.strip()
     if value in (None, ""):
@@ -245,6 +283,8 @@ def _parse_optional_decimal(value, label):
         raise ValidationError(f"{label}必須是數字", field="exercises")
     if parsed < 0:
         raise ValidationError(f"{label}不能是負數", field="exercises")
+    if max_value is not None and parsed > max_value:
+        raise ValidationError(f"{label}不能大於 {max_value}", field="exercises")
     return parsed
 
 
@@ -265,9 +305,9 @@ def _build_class_exercises(entries):
             {
                 "category": category,
                 "name": name,
-                "weight_kg": _parse_optional_decimal(entry.get("weight_kg"), "公斤數"),
-                "sets": _parse_optional_int(entry.get("sets"), "組數"),
-                "reps": _parse_optional_int(entry.get("reps"), "次數"),
+                "weight_kg": _parse_optional_decimal(entry.get("weight_kg"), "公斤數", max_value=200),
+                "sets": _parse_optional_int(entry.get("sets"), "組數", max_value=100),
+                "reps": _parse_optional_int(entry.get("reps"), "次數", max_value=100),
                 "note": _blank_to_none(entry.get("note")),
             }
         )
@@ -399,6 +439,12 @@ def _check_exercise_name_unique(name, exclude_id=None):
         raise ValidationError("已經有相同名稱的項目", field="name")
 
 
+def _check_exercise_catalog_item_not_in_use(item, action_label):
+    in_use = ClassExercise.query.filter_by(exercise_catalog_item_id=item.id).first() is not None
+    if in_use:
+        raise ValidationError(f"此訓練項目已被學生的訓練菜單引用，無法{action_label}", field="name")
+
+
 def create_exercise_catalog_item(data):
     category = (data.get("category") or "").strip()
     name = (data.get("name") or "").strip()
@@ -424,6 +470,7 @@ def update_exercise_catalog_item(item, data):
         raise ValidationError("分類為必填", field="category")
     if not name:
         raise ValidationError("項目名稱為必填", field="name")
+    _check_exercise_catalog_item_not_in_use(item, "編輯")
     _check_exercise_name_unique(name, exclude_id=item.id)
     item.category = category
     item.name = name
@@ -432,6 +479,7 @@ def update_exercise_catalog_item(item, data):
 
 
 def delete_exercise_catalog_item(item):
+    _check_exercise_catalog_item_not_in_use(item, "刪除")
     db.session.delete(item)
     db.session.commit()
 
@@ -465,7 +513,7 @@ def register_student_account(data):
     username = (data.get("username") or "").strip()
     if not username:
         raise ValidationError("帳號為必填", field="username")
-    if User.query.filter_by(username=username).first():
+    if username_exists(username):
         raise ValidationError("此帳號已被使用", field="username")
 
     name = (data.get("name") or "").strip()
@@ -481,6 +529,7 @@ def register_student_account(data):
         role="student",
         status="pending",
         name=name,
+        email=_blank_to_none(data.get("email")),
         phone=phone,
         phone_type=phone_type,
         birthday=data.get("birthday"),
@@ -497,7 +546,7 @@ def create_coach_account(data):
     username = (data.get("username") or "").strip()
     if not username:
         raise ValidationError("帳號為必填", field="username")
-    if User.query.filter_by(username=username).first():
+    if username_exists(username):
         raise ValidationError("此帳號已被使用", field="username")
 
     name = (data.get("name") or "").strip()
@@ -513,6 +562,7 @@ def create_coach_account(data):
         role="coach",
         status="active",
         name=name,
+        email=_blank_to_none(data.get("email")),
         phone=phone,
         phone_type=phone_type,
     )
@@ -525,11 +575,13 @@ def create_coach_account(data):
 def create_student_from_registration(user):
     student = Student(
         name=user.name,
+        email=user.email,
         phone=user.phone,
+        phone_type=user.phone_type,
         birthday=user.birthday,
         gender=user.gender,
         status="active",
-        notes=f"期望運動達成效益：{user.goal}" if user.goal else None,
+        notes=user.goal or None,
     )
     db.session.add(student)
     db.session.flush()
@@ -553,8 +605,11 @@ def set_account_status(user, target_status):
     user.status = target_status
     if target_status == "disabled" and user.student is not None:
         user.student.status = "inactive"
-    if target_status == "active" and user.role == "student" and user.student_id is None:
-        create_student_from_registration(user)
+    if target_status == "active":
+        if user.role == "student" and user.student_id is None:
+            create_student_from_registration(user)
+        if user.student is not None:
+            user.student.status = "active"
     db.session.commit()
     return user
 

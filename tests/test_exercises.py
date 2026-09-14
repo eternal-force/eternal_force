@@ -2,6 +2,7 @@ from app import services
 from app.exercise_catalog_seed import EXERCISE_CATALOG_SEED
 from app.models import ExerciseCatalogItem
 from tests.conftest import get_csrf_token
+from tests.test_classes import _student_with_quota, add_class
 
 
 def test_student_role_gets_403_on_exercises_routes(student_client, active_student_user):
@@ -91,6 +92,53 @@ def test_edit_exercise_updates_category_and_name(logged_in_client, db):
 
     db.session.refresh(item)
     assert item.name == "捲腹+俄羅斯轉體"
+
+
+def test_edit_exercise_blocked_when_referenced_by_class_record(logged_in_client, db):
+    item = ExerciseCatalogItem(category="下肢(蹲類)訓練", name="壺鈴深蹲", sort_order=0)
+    db.session.add(item)
+    db.session.commit()
+
+    student = _student_with_quota(logged_in_client, db)
+    add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{"exercise_category": "下肢(蹲類)訓練", "exercise_name": "壺鈴深蹲"},
+    )
+
+    resp = logged_in_client.get(f"/exercises/{item.id}/edit")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    resp = logged_in_client.post(
+        f"/exercises/{item.id}/edit",
+        data={"category": "下肢(蹲類)訓練", "name": "壺鈴深蹲2", "csrf_token": token},
+    )
+    assert "已被學生的訓練菜單引用" in resp.get_data(as_text=True)
+    db.session.refresh(item)
+    assert item.name == "壺鈴深蹲"
+
+
+def test_delete_exercise_blocked_when_referenced_by_class_record(logged_in_client, db):
+    item = ExerciseCatalogItem(category="下肢(蹲類)訓練", name="壺鈴深蹲", sort_order=0)
+    db.session.add(item)
+    db.session.commit()
+    item_id = item.id
+
+    student = _student_with_quota(logged_in_client, db)
+    add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{"exercise_category": "下肢(蹲類)訓練", "exercise_name": "壺鈴深蹲"},
+    )
+
+    resp = logged_in_client.get("/exercises/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    resp = logged_in_client.post(
+        f"/exercises/{item_id}/delete", data={"csrf_token": token}, follow_redirects=True
+    )
+    assert "已被學生的訓練菜單引用" in resp.get_data(as_text=True)
+    assert db.session.get(ExerciseCatalogItem, item_id) is not None
 
 
 def test_delete_exercise_removes_item(logged_in_client, db):

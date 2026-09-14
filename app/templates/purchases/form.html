@@ -17,7 +17,7 @@
           </div>
           <div>
             {{ form.quantity.label }}
-            {{ form.quantity(type="number", min="1", max="9999", step="1") }}
+            {{ form.quantity(type="number", min="1", max="999", step="1") }}
             {% for e in form.quantity.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
           </div>
         </div>

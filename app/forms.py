@@ -20,11 +20,10 @@ from wtforms.validators import (
     ValidationError as WTFValidationError,
 )
 
-from .models import User
 from .services import ValidationError as ServiceValidationError
-from .services import validate_phone_by_type
+from .services import username_exists, validate_phone_by_type, validate_student_name
 
-PHONE_TYPE_CHOICES = [("", "請選擇"), ("mobile", "手機"), ("landline", "家電")]
+PHONE_TYPE_CHOICES = [("", "請選擇"), ("mobile", "手機"), ("landline", "市話")]
 
 
 def _validate_phone_field(form, field):
@@ -41,8 +40,15 @@ class LoginForm(FlaskForm):
 
 
 def _validate_username_unique(form, field):
-    if User.query.filter_by(username=field.data.strip()).first():
+    if username_exists(field.data):
         raise WTFValidationError("此帳號已被使用")
+
+
+def _validate_student_name_field(form, field):
+    try:
+        validate_student_name((field.data or "").strip())
+    except ServiceValidationError as exc:
+        raise WTFValidationError(exc.message)
 
 
 class RegisterForm(FlaskForm):
@@ -57,6 +63,7 @@ class RegisterForm(FlaskForm):
         validators=[DataRequired(message="請再次輸入密碼"), EqualTo("password", message="兩次輸入的密碼不一致")],
     )
     name = StringField("姓名", validators=[DataRequired(message="姓名為必填"), Length(max=120)])
+    email = StringField("信箱", validators=[Optional(), Email(message="Email 格式不正確"), Length(max=255)])
     phone_type = SelectField(
         "電話類型", choices=PHONE_TYPE_CHOICES, validators=[DataRequired(message="請選擇電話類型")]
     )
@@ -90,14 +97,21 @@ class CoachForm(FlaskForm):
         "密碼", validators=[DataRequired(message="密碼為必填"), Length(min=8, message="密碼長度至少需 8 碼")]
     )
     name = StringField("姓名", validators=[DataRequired(message="姓名為必填"), Length(max=120)])
+    email = StringField("信箱", validators=[Optional(), Email(message="Email 格式不正確"), Length(max=255)])
     phone_type = SelectField("電話類型", choices=PHONE_TYPE_CHOICES, validators=[Optional()])
     phone = StringField("連絡電話", validators=[Optional(), Length(max=40), _validate_phone_field])
 
 
 class StudentForm(FlaskForm):
-    name = StringField("姓名", validators=[DataRequired(message="姓名為必填"), Length(max=120)])
-    phone = StringField("聯絡電話", validators=[Optional(), Length(max=40)])
-    email = StringField("聯絡信箱", validators=[Optional(), Email(message="Email 格式不正確"), Length(max=255)])
+    name = StringField(
+        "姓名",
+        validators=[DataRequired(message="姓名為必填"), Length(max=120), _validate_student_name_field],
+    )
+    phone_type = SelectField("電話類型", choices=PHONE_TYPE_CHOICES, validators=[Optional()])
+    phone = StringField(
+        "連絡電話", validators=[Optional(), Length(max=40), _validate_phone_field]
+    )
+    email = StringField("信箱", validators=[Optional(), Email(message="Email 格式不正確"), Length(max=255)])
     birthday = DateField("生日", validators=[Optional()])
     gender = SelectField(
         "性別",
@@ -108,7 +122,7 @@ class StudentForm(FlaskForm):
     status = SelectField(
         "在籍狀態", choices=[("active", "在籍"), ("inactive", "停用")], validators=[DataRequired()]
     )
-    notes = TextAreaField("備註", validators=[Optional(), Length(max=2000)])
+    notes = TextAreaField("期望運動達成的效益", validators=[Optional(), Length(max=2000)])
 
     def validate_gender(self, field):
         if field.data == "":
@@ -121,7 +135,7 @@ class PurchaseForm(FlaskForm):
         "購買堂數",
         validators=[
             InputRequired(message="購買堂數為必填"),
-            NumberRange(min=1, max=9999, message="購買堂數必須是正整數，且不能大於 9999"),
+            NumberRange(min=1, max=999, message="購買堂數必須是正整數，且不能大於 999"),
         ],
     )
     price = DecimalField(
