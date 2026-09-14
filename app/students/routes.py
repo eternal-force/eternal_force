@@ -109,3 +109,16 @@ def edit_student(student_id):
     return render_template(
         "students/form.html", form=form, mode="edit", student=student, can_edit_status=can_edit_status
     )
+
+
+@bp.route("/<int:student_id>/status", methods=["POST"])
+@roles_required("admin", "coach")
+def change_status(student_id):
+    student = services.get_student_or_404(student_id)
+    form = DeleteConfirmForm()
+    if form.validate_on_submit():
+        new_status = "inactive" if student.status == "active" else "active"
+        services.set_student_status(student, new_status)
+        label = "停用" if new_status == "inactive" else "重新啟用"
+        flash(f"已{label}學生「{student.name}」。", "success")
+    return redirect(url_for("students.student_detail", student_id=student.id))

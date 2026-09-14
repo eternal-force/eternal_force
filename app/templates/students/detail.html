@@ -28,6 +28,13 @@
       </div>
       <div class="btn-group">
         <a class="btn btn-sm" href="{{ url_for('students.edit_student', student_id=student.id) }}">編輯資料</a>
+        {% if current_user.role == 'admin' or (current_user.role == 'coach' and student.status != 'active') %}
+        <form method="post" action="{{ url_for('students.change_status', student_id=student.id) }}"
+              data-confirm="確定要{{ '停用' if student.status == 'active' else '重新啟用' }}這位學生嗎？">
+          {{ delete_form.hidden_tag() }}
+          <button type="submit" class="btn btn-sm">{{ '停用' if student.status == 'active' else '重新啟用' }}</button>
+        </form>
+        {% endif %}
       </div>
     </div>
 

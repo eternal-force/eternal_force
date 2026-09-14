@@ -165,6 +165,8 @@ def update_student(student, data):
         student.status = data["status"]
         if student.status == "active":
             _activate_linked_account(student)
+        else:
+            _deactivate_linked_account(student)
     db.session.commit()
     return student
 
@@ -176,12 +178,21 @@ def _activate_linked_account(student):
         linked_user.status = "active"
 
 
+def _deactivate_linked_account(student):
+    """學生停用時，若有對應的登入帳號且尚未停用，一併改為停用，方向對稱於帳號管理停用帳號時連動停用學生名冊。"""
+    linked_user = User.query.filter_by(student_id=student.id).first()
+    if linked_user is not None and linked_user.role != "admin" and linked_user.status != "disabled":
+        linked_user.status = "disabled"
+
+
 def set_student_status(student, status):
     if status not in ("active", "inactive"):
         raise ValidationError("狀態值不正確，需為 active 或 inactive", field="status")
     student.status = status
     if status == "active":
         _activate_linked_account(student)
+    else:
+        _deactivate_linked_account(student)
     db.session.commit()
     return student
 

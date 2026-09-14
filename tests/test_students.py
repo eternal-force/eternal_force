@@ -300,22 +300,10 @@ def test_student_card_hides_low_remaining_warning_when_enough_remaining(logged_i
     assert "剩餘堂數不足 5 堂" not in body
 
 
-def _edit_student(client, student_id, **overrides):
-    resp = client.get(f"/students/{student_id}/edit")
-    token = get_csrf_token(resp.get_data(as_text=True))
-    data = {
-        "name": "王小明",
-        "phone_type": "",
-        "phone": "",
-        "email": "",
-        "birthday": "",
-        "gender": "",
-        "status": "active",
-        "notes": "",
-        "csrf_token": token,
-    }
-    data.update(overrides)
-    return client.post(f"/students/{student_id}/edit", data=data, follow_redirects=True)
+def _toggle_status(client, student_id):
+    detail = client.get(f"/students/{student_id}")
+    token = get_csrf_token(detail.get_data(as_text=True))
+    return client.post(f"/students/{student_id}/status", data={"csrf_token": token}, follow_redirects=True)
 
 
 def test_toggle_status_deactivate_and_reactivate(logged_in_client, db):
@@ -325,18 +313,18 @@ def test_toggle_status_deactivate_and_reactivate(logged_in_client, db):
     student = Student.query.filter_by(name="王小明").first()
     assert student.status == "active"
 
-    resp = _edit_student(logged_in_client, student.id, status="inactive")
+    resp = _toggle_status(logged_in_client, student.id)
     db.session.refresh(student)
     assert student.status == "inactive"
-    assert "已更新" in resp.get_data(as_text=True)
+    assert "已停用" in resp.get_data(as_text=True)
 
     # 軟刪除保留歷史紀錄:學生本身仍然存在,只是狀態變成 inactive
     assert db.session.get(Student, student.id) is not None
 
-    resp = _edit_student(logged_in_client, student.id, status="active")
+    resp = _toggle_status(logged_in_client, student.id)
     db.session.refresh(student)
     assert student.status == "active"
-    assert "已更新" in resp.get_data(as_text=True)
+    assert "已重新啟用" in resp.get_data(as_text=True)
 
 
 def test_reactivating_student_reactivates_linked_account(logged_in_client, active_student_user, db):
@@ -351,11 +339,25 @@ def test_reactivating_student_reactivates_linked_account(logged_in_client, activ
     assert student.status == "inactive"
     assert active_student_user.status == "disabled"
 
-    _edit_student(logged_in_client, student.id, name=student.name, status="active")
+    _toggle_status(logged_in_client, student.id)
     db.session.refresh(student)
     db.session.refresh(active_student_user)
     assert student.status == "active"
     assert active_student_user.status == "active"
+
+
+def test_deactivating_student_deactivates_linked_account(logged_in_client, active_student_user, db):
+    from app.models import Student
+
+    student = db.session.get(Student, active_student_user.student_id)
+    assert student.status == "active"
+    assert active_student_user.status == "active"
+
+    _toggle_status(logged_in_client, student.id)
+    db.session.refresh(student)
+    db.session.refresh(active_student_user)
+    assert student.status == "inactive"
+    assert active_student_user.status == "disabled"
 
 
 def test_student_role_list_redirects_to_own_detail(student_client, active_student_user):
@@ -385,22 +387,35 @@ def test_coach_sees_back_to_list_link(coach_client, db):
     assert "回學生列表" in coach_client.get(f"/students/{student.id}").get_data(as_text=True)
 
 
-def test_student_detail_has_no_status_toggle_button(logged_in_client, db):
-    """學生明細頁不再提供直接停用/重新啟用的按鈕；在籍狀態僅能透過「編輯資料」表單調整。"""
+def test_admin_sees_deactivate_and_reactivate_button_on_student_detail(logged_in_client, db):
     from app import services
 
     student = services.create_student({"name": "王小明", "status": "active"})
 
-    status_action = f"/students/{student.id}/status"
     body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
-    assert status_action not in body
+    assert ">停用<" in body
+
+    services.set_student_status(student, "inactive")
+    db.session.refresh(student)
+
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert ">重新啟用<" in body
+
+
+def test_coach_does_not_see_deactivate_button_but_sees_reactivate(coach_client, db):
+    from app import services
+
+    student = services.create_student({"name": "王小明", "status": "active"})
+
+    body = coach_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert ">停用<" not in body
 
     services.set_student_status(student, "inactive")
     db.session.refresh(student)
     assert student.status == "inactive"
 
-    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
-    assert status_action not in body
+    body = coach_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert ">重新啟用<" in body
 
 
 def test_student_card_shows_linked_account_username(logged_in_client, active_student_user, db):
@@ -478,6 +493,13 @@ def test_student_role_cannot_view_other_students_detail(student_client, db):
 
 def test_student_role_gets_403_on_admin_routes(student_client, active_student_user):
     assert student_client.get("/students/new").status_code == 403
+
+    own_page = student_client.get(f"/students/{active_student_user.student_id}")
+    token = get_csrf_token(own_page.get_data(as_text=True))
+    resp = student_client.post(
+        f"/students/{active_student_user.student_id}/status", data={"csrf_token": token}
+    )
+    assert resp.status_code == 403
 
 
 def test_student_role_can_edit_own_student_data_but_not_status(student_client, active_student_user, db):
