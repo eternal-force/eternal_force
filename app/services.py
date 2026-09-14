@@ -3,6 +3,7 @@
 """
 
 import re
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from flask import abort
@@ -129,7 +130,7 @@ def create_student(data):
         email=_blank_to_none(data.get("email")),
         birthday=data.get("birthday"),
         gender=data.get("gender") or None,
-        enrollment_date=data.get("enrollment_date"),
+        enrollment_date=date.today(),
         status=data.get("status") or "active",
         notes=_blank_to_none(data.get("notes")),
     )
@@ -156,11 +157,14 @@ def update_student(student, data):
     for key in ("email", "notes"):
         if key in data:
             setattr(student, key, _blank_to_none(data[key]))
-    for key in ("birthday", "enrollment_date", "gender"):
+    # 入班/建檔日期不可編輯：一律沿用建立當下寫入的值，即使呼叫端帶了 enrollment_date 也忽略。
+    for key in ("birthday", "gender"):
         if key in data:
             setattr(student, key, data[key] or None)
     if "status" in data and data["status"] in ("active", "inactive"):
         student.status = data["status"]
+        if student.status == "active":
+            _activate_linked_account(student)
     db.session.commit()
     return student
 
@@ -515,6 +519,8 @@ def register_student_account(data):
     username = (data.get("username") or "").strip()
     if not username:
         raise ValidationError("帳號為必填", field="username")
+    if len(username) > 30:
+        raise ValidationError("帳號長度不得超過 30 個字元", field="username")
     if username_exists(username):
         raise ValidationError("此帳號已被使用", field="username")
 
@@ -575,6 +581,7 @@ def create_coach_account(data):
 
 
 def create_student_from_registration(user):
+    """帳號經教練/管理者審核通過（驗證或重新啟用）才會建立學生名冊，入班/建檔日期預設為審核當天。"""
     student = Student(
         name=user.name,
         email=user.email,
@@ -583,6 +590,7 @@ def create_student_from_registration(user):
         birthday=user.birthday,
         gender=user.gender,
         status="active",
+        enrollment_date=date.today(),
         notes=user.goal or None,
     )
     db.session.add(student)

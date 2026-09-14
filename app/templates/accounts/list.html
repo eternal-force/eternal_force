@@ -77,14 +77,14 @@
                 <input type="hidden" name="target_status" value="disabled">
                 <button type="submit" class="btn btn-sm btn-danger">拒絕</button>
               </form>
-            {% elif u.role != 'admin' and u.status == 'active' and current_user.role == 'admin' %}
+            {% elif u.role != 'admin' and u.status == 'active' and (current_user.role == 'admin' or u.role == 'student') %}
               <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}"
                     data-confirm="確定要停用帳號「{{ u.username }}」嗎？">
                 {{ delete_form.hidden_tag() }}
                 <input type="hidden" name="target_status" value="disabled">
                 <button type="submit" class="btn btn-sm">停用</button>
               </form>
-            {% elif u.role != 'admin' and u.status == 'disabled' %}
+            {% elif u.role != 'admin' and u.status == 'disabled' and (current_user.role == 'admin' or u.role == 'student') %}
               <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}">
                 {{ delete_form.hidden_tag() }}
                 <input type="hidden" name="target_status" value="active">

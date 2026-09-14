@@ -53,7 +53,12 @@ def _validate_student_name_field(form, field):
 
 class RegisterForm(FlaskForm):
     username = StringField(
-        "帳號", validators=[DataRequired(message="帳號為必填"), Length(max=80), _validate_username_unique]
+        "帳號",
+        validators=[
+            DataRequired(message="帳號為必填"),
+            Length(max=30, message="帳號長度不得超過 30 個字元"),
+            _validate_username_unique,
+        ],
     )
     password = PasswordField(
         "密碼", validators=[DataRequired(message="密碼為必填"), Length(min=8, message="密碼長度至少需 8 碼")]
@@ -118,7 +123,6 @@ class StudentForm(FlaskForm):
         choices=[("", "未填寫"), ("male", "男"), ("female", "女"), ("other", "其他")],
         validators=[Optional()],
     )
-    enrollment_date = DateField("入班/建檔日期", validators=[Optional()])
     status = SelectField(
         "在籍狀態", choices=[("active", "在籍"), ("inactive", "停用")], validators=[DataRequired()]
     )

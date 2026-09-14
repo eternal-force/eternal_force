@@ -49,9 +49,9 @@
             {{ form.gender() }}
           </div>
           <div>
-            {{ form.enrollment_date.label }}
-            {{ form.enrollment_date(type="date") }}
-            {% for e in form.enrollment_date.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+            <label>入班/建檔日期</label>
+            {% set enrollment_date_value = student.enrollment_date if mode == 'edit' else today %}
+            <div>{{ enrollment_date_value.strftime('%Y-%m-%d') if enrollment_date_value else '-' }}</div>
           </div>
         </div>
 

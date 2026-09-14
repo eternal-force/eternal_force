@@ -1,4 +1,5 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask_login import current_user
 
 from .. import services
 from ..auth.decorators import roles_required
@@ -58,6 +59,8 @@ def verify(user_id):
 @roles_required("admin", "coach")
 def change_status(user_id):
     user = _get_user_or_404(user_id)
+    if current_user.role == "coach" and user.role != "student":
+        abort(403)
     target_status = request.form.get("target_status")
     form = DeleteConfirmForm()
     if form.validate_on_submit():

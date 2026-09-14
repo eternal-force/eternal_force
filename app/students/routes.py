@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
@@ -53,7 +55,6 @@ def new_student():
                     "email": form.email.data,
                     "birthday": form.birthday.data,
                     "gender": form.gender.data,
-                    "enrollment_date": form.enrollment_date.data,
                     "status": form.status.data,
                     "notes": form.notes.data,
                 }
@@ -62,7 +63,7 @@ def new_student():
             return redirect(url_for("students.student_detail", student_id=student.id))
         except services.ValidationError as exc:
             flash(exc.message, "danger")
-    return render_template("students/form.html", form=form, mode="new")
+    return render_template("students/form.html", form=form, mode="new", today=date.today())
 
 
 @bp.route("/<int:student_id>")
@@ -95,7 +96,6 @@ def edit_student(student_id):
             "email": form.email.data,
             "birthday": form.birthday.data,
             "gender": form.gender.data,
-            "enrollment_date": form.enrollment_date.data,
             "notes": form.notes.data,
         }
         if can_edit_status:
@@ -109,16 +109,3 @@ def edit_student(student_id):
     return render_template(
         "students/form.html", form=form, mode="edit", student=student, can_edit_status=can_edit_status
     )
-
-
-@bp.route("/<int:student_id>/status", methods=["POST"])
-@roles_required("admin", "coach")
-def change_status(student_id):
-    student = services.get_student_or_404(student_id)
-    form = DeleteConfirmForm()
-    if form.validate_on_submit():
-        new_status = "inactive" if student.status == "active" else "active"
-        services.set_student_status(student, new_status)
-        label = "停用" if new_status == "inactive" else "重新啟用"
-        flash(f"已{label}學生「{student.name}」。", "success")
-    return redirect(url_for("students.student_detail", student_id=student.id))

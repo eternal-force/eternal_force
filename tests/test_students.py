@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from tests.conftest import get_csrf_token
 
 
@@ -11,7 +13,6 @@ def create_student(client, **overrides):
         "email": "",
         "birthday": "",
         "gender": "",
-        "enrollment_date": "",
         "status": "active",
         "notes": "",
         "csrf_token": token,
@@ -43,6 +44,55 @@ def test_create_student_rejects_special_characters_in_name(logged_in_client):
     resp = create_student(logged_in_client, name="王小明@!")
     assert resp.status_code == 200
     assert "姓名不能包含特殊符號" in resp.get_data(as_text=True)
+
+
+def test_new_student_enrollment_date_defaults_to_today_and_is_not_editable(logged_in_client):
+    from app.models import Student
+
+    resp = logged_in_client.get("/students/new")
+    body = resp.get_data(as_text=True)
+    assert "入班/建檔日期" in body
+    assert date.today().isoformat() in body
+    assert 'name="enrollment_date"' not in body
+
+    forged_date = (date.today() - timedelta(days=30)).isoformat()
+    create_student(logged_in_client, name="王小明", enrollment_date=forged_date)
+    student = Student.query.filter_by(name="王小明").first()
+    assert student.enrollment_date == date.today()
+
+
+def test_edit_student_cannot_change_enrollment_date(logged_in_client, db):
+    from app.models import Student
+
+    create_student(logged_in_client, name="王小明")
+    student = Student.query.filter_by(name="王小明").first()
+    original_enrollment_date = student.enrollment_date
+
+    resp = logged_in_client.get(f"/students/{student.id}/edit")
+    body = resp.get_data(as_text=True)
+    assert 'name="enrollment_date"' not in body
+    assert original_enrollment_date.isoformat() in body
+
+    token = get_csrf_token(body)
+    forged_date = (date.today() - timedelta(days=30)).isoformat()
+    logged_in_client.post(
+        f"/students/{student.id}/edit",
+        data={
+            "name": "王小明",
+            "phone_type": "",
+            "phone": "",
+            "email": "",
+            "birthday": "",
+            "gender": "",
+            "status": "active",
+            "notes": "",
+            "enrollment_date": forged_date,
+            "csrf_token": token,
+        },
+        follow_redirects=True,
+    )
+    db.session.refresh(student)
+    assert student.enrollment_date == original_enrollment_date
 
 
 def test_create_student_rejects_name_over_20_chars(logged_in_client):
@@ -250,6 +300,24 @@ def test_student_card_hides_low_remaining_warning_when_enough_remaining(logged_i
     assert "剩餘堂數不足 5 堂" not in body
 
 
+def _edit_student(client, student_id, **overrides):
+    resp = client.get(f"/students/{student_id}/edit")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    data = {
+        "name": "王小明",
+        "phone_type": "",
+        "phone": "",
+        "email": "",
+        "birthday": "",
+        "gender": "",
+        "status": "active",
+        "notes": "",
+        "csrf_token": token,
+    }
+    data.update(overrides)
+    return client.post(f"/students/{student_id}/edit", data=data, follow_redirects=True)
+
+
 def test_toggle_status_deactivate_and_reactivate(logged_in_client, db):
     create_student(logged_in_client, name="王小明")
     from app.models import Student
@@ -257,27 +325,18 @@ def test_toggle_status_deactivate_and_reactivate(logged_in_client, db):
     student = Student.query.filter_by(name="王小明").first()
     assert student.status == "active"
 
-    detail = logged_in_client.get(f"/students/{student.id}")
-    token = get_csrf_token(detail.get_data(as_text=True))
-
-    resp = logged_in_client.post(
-        f"/students/{student.id}/status", data={"csrf_token": token}, follow_redirects=True
-    )
+    resp = _edit_student(logged_in_client, student.id, status="inactive")
     db.session.refresh(student)
     assert student.status == "inactive"
-    assert "已停用" in resp.get_data(as_text=True)
+    assert "已更新" in resp.get_data(as_text=True)
 
     # 軟刪除保留歷史紀錄:學生本身仍然存在,只是狀態變成 inactive
     assert db.session.get(Student, student.id) is not None
 
-    detail = logged_in_client.get(f"/students/{student.id}")
-    token = get_csrf_token(detail.get_data(as_text=True))
-    resp = logged_in_client.post(
-        f"/students/{student.id}/status", data={"csrf_token": token}, follow_redirects=True
-    )
+    resp = _edit_student(logged_in_client, student.id, status="active")
     db.session.refresh(student)
     assert student.status == "active"
-    assert "已重新啟用" in resp.get_data(as_text=True)
+    assert "已更新" in resp.get_data(as_text=True)
 
 
 def test_reactivating_student_reactivates_linked_account(logged_in_client, active_student_user, db):
@@ -292,9 +351,7 @@ def test_reactivating_student_reactivates_linked_account(logged_in_client, activ
     assert student.status == "inactive"
     assert active_student_user.status == "disabled"
 
-    detail = logged_in_client.get(f"/students/{student.id}")
-    token = get_csrf_token(detail.get_data(as_text=True))
-    logged_in_client.post(f"/students/{student.id}/status", data={"csrf_token": token})
+    _edit_student(logged_in_client, student.id, name=student.name, status="active")
     db.session.refresh(student)
     db.session.refresh(active_student_user)
     assert student.status == "active"
@@ -328,20 +385,22 @@ def test_coach_sees_back_to_list_link(coach_client, db):
     assert "回學生列表" in coach_client.get(f"/students/{student.id}").get_data(as_text=True)
 
 
-def test_coach_does_not_see_deactivate_button_but_sees_reactivate(coach_client, db):
+def test_student_detail_has_no_status_toggle_button(logged_in_client, db):
+    """學生明細頁不再提供直接停用/重新啟用的按鈕；在籍狀態僅能透過「編輯資料」表單調整。"""
     from app import services
 
     student = services.create_student({"name": "王小明", "status": "active"})
 
-    body = coach_client.get(f"/students/{student.id}").get_data(as_text=True)
-    assert ">停用<" not in body
+    status_action = f"/students/{student.id}/status"
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert status_action not in body
 
     services.set_student_status(student, "inactive")
     db.session.refresh(student)
     assert student.status == "inactive"
 
-    body = coach_client.get(f"/students/{student.id}").get_data(as_text=True)
-    assert ">重新啟用<" in body
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    assert status_action not in body
 
 
 def test_student_card_shows_linked_account_username(logged_in_client, active_student_user, db):
@@ -419,13 +478,6 @@ def test_student_role_cannot_view_other_students_detail(student_client, db):
 
 def test_student_role_gets_403_on_admin_routes(student_client, active_student_user):
     assert student_client.get("/students/new").status_code == 403
-
-    own_page = student_client.get(f"/students/{active_student_user.student_id}")
-    token = get_csrf_token(own_page.get_data(as_text=True))
-    resp = student_client.post(
-        f"/students/{active_student_user.student_id}/status", data={"csrf_token": token}
-    )
-    assert resp.status_code == 403
 
 
 def test_student_role_can_edit_own_student_data_but_not_status(student_client, active_student_user, db):

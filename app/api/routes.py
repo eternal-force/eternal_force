@@ -55,7 +55,6 @@ def api_create_student():
     try:
         payload = dict(data)
         payload["birthday"] = _parse_date(data.get("birthday"), "birthday")
-        payload["enrollment_date"] = _parse_date(data.get("enrollment_date"), "enrollment_date")
         student = services.create_student(payload)
     except services.ValidationError as exc:
         return jsonify({"error": exc.message, "field": exc.field}), 400
@@ -78,8 +77,6 @@ def api_update_student(student_id):
         payload = dict(data)
         if "birthday" in data:
             payload["birthday"] = _parse_date(data.get("birthday"), "birthday")
-        if "enrollment_date" in data:
-            payload["enrollment_date"] = _parse_date(data.get("enrollment_date"), "enrollment_date")
         student = services.update_student(student, payload)
     except services.ValidationError as exc:
         return jsonify({"error": exc.message, "field": exc.field}), 400

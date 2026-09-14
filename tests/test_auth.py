@@ -95,6 +95,20 @@ def test_register_stores_email(client, db):
     assert user.email == "student@example.com"
 
 
+def test_register_username_over_30_chars_rejected(client, db):
+    long_username = "a" * 31
+    resp = _register(client, username=long_username)
+    assert "帳號長度不得超過 30 個字元" in resp.get_data(as_text=True)
+    assert User.query.filter_by(username=long_username).first() is None
+
+
+def test_register_username_exactly_30_chars_accepted(client, db):
+    username = "a" * 30
+    resp = _register(client, username=username)
+    assert "請等候管理者驗證" in resp.get_data(as_text=True)
+    assert User.query.filter_by(username=username).first() is not None
+
+
 def test_login_with_pending_account_is_refused(client, pending_student_user):
     resp = login(client, PENDING_STUDENT_USERNAME, PENDING_STUDENT_PASSWORD)
     assert "尚待管理者驗證" in resp.get_data(as_text=True)

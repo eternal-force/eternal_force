@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.models import Student, User
 from tests.conftest import get_csrf_token, login
 
@@ -94,6 +96,7 @@ def test_verify_activates_account_and_creates_linked_student(logged_in_client, p
     assert student.name == pending_student_user.name
     assert student.phone == pending_student_user.phone
     assert "增肌" in (student.notes or "")
+    assert student.enrollment_date == date.today()
 
 
 def test_verify_is_idempotent(logged_in_client, pending_student_user, db):
@@ -129,6 +132,7 @@ def test_reject_then_reactivate_rebinds_student(logged_in_client, pending_studen
     student = db.session.get(Student, pending_student_user.student_id)
     assert student.name == pending_student_user.name
     assert student.status == "active"
+    assert student.enrollment_date == date.today()
 
 
 def test_status_toggle_both_directions(logged_in_client, active_student_user, db):
@@ -246,7 +250,17 @@ def test_coach_cannot_change_account_role(coach_client, active_student_user):
     assert resp.status_code == 403
 
 
-def test_coach_does_not_see_deactivate_button_in_accounts_list(coach_client, active_student_user):
+def test_coach_sees_deactivate_button_for_student_in_accounts_list(coach_client, active_student_user):
+    body = coach_client.get("/accounts/").get_data(as_text=True)
+    assert ">停用<" in body
+
+
+def test_coach_does_not_see_deactivate_button_for_coach_in_accounts_list(coach_client, db):
+    other_coach = User(username="coach2", role="coach", status="active", name="教練B")
+    other_coach.set_password("OtherCoach123")
+    db.session.add(other_coach)
+    db.session.commit()
+
     body = coach_client.get("/accounts/").get_data(as_text=True)
     assert ">停用<" not in body
 
@@ -254,6 +268,56 @@ def test_coach_does_not_see_deactivate_button_in_accounts_list(coach_client, act
 def test_admin_sees_deactivate_button_in_accounts_list(logged_in_client, active_student_user):
     body = logged_in_client.get("/accounts/").get_data(as_text=True)
     assert ">停用<" in body
+
+
+def test_coach_can_change_student_account_status(coach_client, active_student_user, db):
+    resp = coach_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+
+    coach_client.post(
+        f"/accounts/{active_student_user.id}/status",
+        data={"target_status": "disabled", "csrf_token": token},
+    )
+    db.session.refresh(active_student_user)
+    assert active_student_user.status == "disabled"
+
+    coach_client.post(
+        f"/accounts/{active_student_user.id}/status",
+        data={"target_status": "active", "csrf_token": token},
+    )
+    db.session.refresh(active_student_user)
+    assert active_student_user.status == "active"
+
+
+def test_coach_cannot_change_coach_account_status(coach_client, db):
+    other_coach = User(username="coach2", role="coach", status="active", name="教練B")
+    other_coach.set_password("OtherCoach123")
+    db.session.add(other_coach)
+    db.session.commit()
+
+    resp = coach_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    resp = coach_client.post(
+        f"/accounts/{other_coach.id}/status",
+        data={"target_status": "disabled", "csrf_token": token},
+    )
+    assert resp.status_code == 403
+
+    db.session.refresh(other_coach)
+    assert other_coach.status == "active"
+
+
+def test_coach_cannot_change_admin_account_status(coach_client, admin_user, db):
+    resp = coach_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    resp = coach_client.post(
+        f"/accounts/{admin_user.id}/status",
+        data={"target_status": "disabled", "csrf_token": token},
+    )
+    assert resp.status_code == 403
+
+    db.session.refresh(admin_user)
+    assert admin_user.status == "active"
 
 
 def test_new_coach_stores_email_and_shown_on_detail_page(logged_in_client, db):
