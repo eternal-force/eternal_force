@@ -2,6 +2,7 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from .config import get_config
 from .extensions import csrf, db, limiter, login_manager
+from .services import category_badge_class
 
 
 def create_app(config_name=None):
@@ -12,6 +13,8 @@ def create_app(config_name=None):
     login_manager.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
+
+    app.jinja_env.filters["category_badge_class"] = category_badge_class
 
     from .models import User
 

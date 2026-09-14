@@ -220,6 +220,23 @@ def test_add_class_with_catalog_exercise_links_catalog_item(logged_in_client, db
     assert exercise.exercise_catalog_item_id == catalog_item.id
 
 
+def test_student_detail_shows_exercise_with_colored_category_badge(logged_in_client, db):
+    from app import services
+
+    student = _student_with_quota(logged_in_client, db)
+
+    add_class(
+        logged_in_client,
+        db,
+        student.id,
+        **{"exercise_category": "下肢(蹲類)訓練", "exercise_name": "壺鈴深蹲"},
+    )
+
+    body = logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+    badge_class = services.category_badge_class("下肢(蹲類)訓練")
+    assert f'<span class="badge {badge_class}">下肢(蹲類)訓練</span> 壺鈴深蹲' in body
+
+
 def test_add_class_with_custom_exercise_not_in_catalog(logged_in_client, db):
     from app.models import ClassExercise
 

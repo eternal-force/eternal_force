@@ -132,7 +132,7 @@
                       {% set metrics = [] %}
                       {% if reps_part %}{% set _ = metrics.append(reps_part|join(' x ')) %}{% endif %}
                       {% if ex.weight_kg is not none %}{% set _ = metrics.append(ex.weight_kg ~ 'kg') %}{% endif %}
-                      <li>{{ ex.name }}{% if metrics %}（{{ metrics|join(' · ') }}）{% endif %}{% if ex.note %} — {{ ex.note }}{% endif %}</li>
+                      <li><span class="badge {{ ex.category|category_badge_class }}">{{ ex.category }}</span> {{ ex.name }}{% if metrics %}（{{ metrics|join(' · ') }}）{% endif %}{% if ex.note %} — {{ ex.note }}{% endif %}</li>
                     {% endfor %}
                   </ul>
                 {% else %}

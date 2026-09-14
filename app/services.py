@@ -3,6 +3,7 @@
 """
 
 import re
+import zlib
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -437,6 +438,18 @@ def exercise_catalog_name_map():
     for item in list_exercise_catalog():
         mapping.setdefault(item.category, []).append(item.name)
     return mapping
+
+
+CATEGORY_BADGE_COLOR_COUNT = 10
+
+
+def category_badge_class(category):
+    """依分類名稱固定分配一種顏色樣式(badge-cat-0 ~ badge-cat-9)，同一分類無論在哪個頁面顯示都會是同一個顏色。
+    用 crc32 而非內建 hash()，避免字串 hash 隨機化(PYTHONHASHSEED)導致每次啟動服務顏色跳動。"""
+    if not category:
+        return "badge-muted"
+    index = zlib.crc32(category.encode("utf-8")) % CATEGORY_BADGE_COLOR_COUNT
+    return f"badge-cat-{index}"
 
 
 def get_exercise_catalog_item_or_404(item_id):

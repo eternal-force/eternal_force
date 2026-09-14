@@ -77,6 +77,25 @@ def test_list_groups_by_category_and_supports_search_and_filter(logged_in_client
     assert "壺鈴深蹲" not in body
 
 
+def test_category_badge_class_is_deterministic_and_not_always_muted():
+    assert services.category_badge_class("暖身 / 伸展") == services.category_badge_class("暖身 / 伸展")
+    assert services.category_badge_class("下肢(蹲類)訓練") == services.category_badge_class("下肢(蹲類)訓練")
+    assert services.category_badge_class("") == "badge-muted"
+    assert services.category_badge_class(None) == "badge-muted"
+    assert services.category_badge_class("暖身 / 伸展") != "badge-muted"
+
+
+def test_list_shows_category_with_color_badge(logged_in_client, db):
+    db.session.add(ExerciseCatalogItem(category="暖身 / 伸展", name="鴿式伸展", sort_order=0))
+    db.session.commit()
+
+    resp = logged_in_client.get("/exercises/")
+    body = resp.get_data(as_text=True)
+    badge_class = services.category_badge_class("暖身 / 伸展")
+    assert f'class="badge {badge_class}"' in body
+    assert 'class="badge badge-muted">暖身 / 伸展' not in body
+
+
 def test_list_search_bar_and_category_groups_are_collapsed_by_default(logged_in_client, db):
     db.session.add(ExerciseCatalogItem(category="暖身 / 伸展", name="鴿式伸展", sort_order=0))
     db.session.commit()

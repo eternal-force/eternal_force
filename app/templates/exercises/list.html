@@ -43,7 +43,7 @@
     {% for cat, items in groups %}
       <details class="card">
         <summary class="row-between card-section-summary">
-          <span><span class="section-toggle-arrow">&#9656;</span> <span class="badge badge-muted">{{ cat }}</span></span>
+          <span><span class="section-toggle-arrow">&#9656;</span> <span class="badge {{ cat|category_badge_class }}">{{ cat }}</span></span>
           <span class="muted">{{ items|length }} 個項目</span>
         </summary>
         <div class="record-list" style="margin-top:10px;">
