@@ -211,6 +211,42 @@ def test_admin_can_promote_student_to_coach_and_back(logged_in_client, active_st
     assert active_student_user.role == "student"
 
 
+def test_switching_coach_to_student_creates_missing_student_roster(logged_in_client, coach_user, db):
+    assert coach_user.student_id is None
+
+    resp = logged_in_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    logged_in_client.post(
+        f"/accounts/{coach_user.id}/role",
+        data={"target_role": "student", "csrf_token": token},
+    )
+
+    db.session.refresh(coach_user)
+    assert coach_user.role == "student"
+    assert coach_user.student_id is not None
+    assert coach_user.student.name == coach_user.name
+    assert coach_user.student.status == "active"
+
+
+def test_switching_coach_to_student_keeps_existing_student_roster(
+    logged_in_client, active_student_user, db
+):
+    existing_student_id = active_student_user.student_id
+    active_student_user.role = "coach"
+    db.session.commit()
+
+    resp = logged_in_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    logged_in_client.post(
+        f"/accounts/{active_student_user.id}/role",
+        data={"target_role": "student", "csrf_token": token},
+    )
+
+    db.session.refresh(active_student_user)
+    assert active_student_user.role == "student"
+    assert active_student_user.student_id == existing_student_id
+
+
 def test_admin_account_role_cannot_be_changed(logged_in_client, db):
     other_admin = User(username="admin2", role="admin", status="active")
     other_admin.set_password("OtherAdmin123")

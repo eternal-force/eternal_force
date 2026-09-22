@@ -669,6 +669,8 @@ def set_account_role(user, target_role):
     if user.role == "admin":
         raise ValidationError("管理者帳號的角色無法在此變更", field="role")
     user.role = target_role
+    if target_role == "student" and user.student_id is None:
+        create_student_from_registration(user)
     db.session.commit()
     return user
 
