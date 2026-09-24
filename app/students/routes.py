@@ -3,7 +3,7 @@ from datetime import date
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from .. import services
+from .. import list_filters, services
 from ..auth.decorators import roles_required
 from ..forms import DeleteConfirmForm, StudentForm
 from ..models import Student
@@ -18,6 +18,10 @@ def list_students():
         if current_user.student_id is None:
             abort(404)
         return redirect(url_for("students.student_detail", student_id=current_user.student_id))
+
+    restored = list_filters.restore_or_remember(("search", "status", "page"))
+    if restored:
+        return restored
 
     search = request.args.get("search", "").strip()
     status = request.args.get("status", "").strip()

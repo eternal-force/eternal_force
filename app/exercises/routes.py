@@ -1,6 +1,6 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
-from .. import services
+from .. import list_filters, services
 from ..auth.decorators import roles_required
 from ..forms import DeleteConfirmForm, ExerciseCatalogForm
 
@@ -25,6 +25,10 @@ def _grouped_by_category(items):
 @bp.route("/")
 @roles_required("admin", "coach")
 def list_exercises():
+    restored = list_filters.restore_or_remember(("search", "category"))
+    if restored:
+        return restored
+
     search = request.args.get("search", "").strip()
     category = request.args.get("category", "").strip()
     items = services.list_exercise_catalog(search=search, category=category)

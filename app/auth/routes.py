@@ -1,7 +1,7 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from .. import services
+from .. import list_filters, services
 from ..extensions import limiter
 from ..forms import LoginForm, RegisterForm
 from ..models import User
@@ -67,5 +67,6 @@ def register():
 @login_required
 def logout():
     logout_user()
+    list_filters.clear_all()
     flash("已登出。", "success")
     return redirect(url_for("auth.login"))

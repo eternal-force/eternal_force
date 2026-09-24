@@ -1,7 +1,7 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from .. import services
+from .. import list_filters, services
 from ..auth.decorators import roles_required
 from ..extensions import db
 from ..forms import CoachForm, DeleteConfirmForm, SetPasswordForm
@@ -20,6 +20,10 @@ def _get_user_or_404(user_id):
 @bp.route("/")
 @roles_required("admin", "coach")
 def list_accounts():
+    restored = list_filters.restore_or_remember(("search", "role"))
+    if restored:
+        return restored
+
     search = request.args.get("search", "").strip()
     role = request.args.get("role", "").strip()
     accounts = services.list_accounts(search=search, role=role)
