@@ -71,12 +71,14 @@
                 {{ delete_form.hidden_tag() }}
                 <button type="submit" class="btn btn-sm btn-primary">驗證</button>
               </form>
+              {% if current_user.role == 'admin' or u.role == 'student' %}
               <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}"
                     data-confirm="確定要拒絕並停用「{{ u.username }}」的註冊申請嗎？">
                 {{ delete_form.hidden_tag() }}
                 <input type="hidden" name="target_status" value="disabled">
                 <button type="submit" class="btn btn-sm btn-danger">拒絕</button>
               </form>
+              {% endif %}
             {% elif u.role != 'admin' and u.status == 'active' and (current_user.role == 'admin' or u.role == 'student') %}
               <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}"
                     data-confirm="確定要停用帳號「{{ u.username }}」嗎？">

@@ -301,6 +301,38 @@ def test_coach_does_not_see_deactivate_button_for_coach_in_accounts_list(coach_c
     assert ">停用<" not in body
 
 
+def test_coach_does_not_see_reject_button_for_pending_coach(coach_client, db):
+    pending_coach = User(username="coach_pending", role="coach", status="pending", name="教練C")
+    pending_coach.set_password("PendingCoach123")
+    db.session.add(pending_coach)
+    db.session.commit()
+
+    body = coach_client.get("/accounts/").get_data(as_text=True)
+    assert ">拒絕<" not in body
+
+
+def test_coach_sees_reject_button_for_pending_student(coach_client, pending_student_user):
+    body = coach_client.get("/accounts/").get_data(as_text=True)
+    assert ">拒絕<" in body
+
+
+def test_coach_cannot_reject_pending_coach(coach_client, db):
+    pending_coach = User(username="coach_pending", role="coach", status="pending", name="教練C")
+    pending_coach.set_password("PendingCoach123")
+    db.session.add(pending_coach)
+    db.session.commit()
+
+    resp = coach_client.get("/accounts/")
+    token = get_csrf_token(resp.get_data(as_text=True))
+    resp = coach_client.post(
+        f"/accounts/{pending_coach.id}/status",
+        data={"target_status": "disabled", "csrf_token": token},
+    )
+    assert resp.status_code == 403
+    db.session.refresh(pending_coach)
+    assert pending_coach.status == "pending"
+
+
 def test_admin_sees_deactivate_button_in_accounts_list(logged_in_client, active_student_user):
     body = logged_in_client.get("/accounts/").get_data(as_text=True)
     assert ">停用<" in body
