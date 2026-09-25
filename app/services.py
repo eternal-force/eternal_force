@@ -155,9 +155,15 @@ def update_student(student, data):
         validate_phone_by_type(phone, phone_type)
         student.phone = phone
         student.phone_type = phone_type
-    for key in ("email", "notes"):
-        if key in data:
-            setattr(student, key, _blank_to_none(data[key]))
+        if student.account is not None:
+            student.account.phone = phone
+            student.account.phone_type = phone_type
+    if "email" in data:
+        student.email = _blank_to_none(data["email"])
+        if student.account is not None:
+            student.account.email = student.email
+    if "notes" in data:
+        student.notes = _blank_to_none(data["notes"])
     # 入班/建檔日期不可編輯：一律沿用建立當下寫入的值，即使呼叫端帶了 enrollment_date 也忽略。
     for key in ("birthday", "gender"):
         if key in data:

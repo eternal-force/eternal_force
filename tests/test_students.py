@@ -480,6 +480,42 @@ def test_update_student_name_syncs_linked_account_name(logged_in_client, active_
     assert "李小華新名字" in account_page.get_data(as_text=True)
 
 
+def test_update_student_email_and_phone_sync_linked_account(logged_in_client, active_student_user, db):
+    from app.models import Student
+
+    student = db.session.get(Student, active_student_user.student_id)
+
+    edit_page = logged_in_client.get(f"/students/{student.id}/edit")
+    token = get_csrf_token(edit_page.get_data(as_text=True))
+    logged_in_client.post(
+        f"/students/{student.id}/edit",
+        data={
+            "name": student.name,
+            "phone_type": "landline",
+            "phone": "02-12345678",
+            "email": "new-mail@example.com",
+            "birthday": "",
+            "gender": "",
+            "enrollment_date": "",
+            "status": "active",
+            "notes": "",
+            "csrf_token": token,
+        },
+        follow_redirects=True,
+    )
+
+    db.session.refresh(student)
+    db.session.refresh(active_student_user)
+    assert student.email == "new-mail@example.com"
+    assert active_student_user.email == "new-mail@example.com"
+    assert student.phone == active_student_user.phone == "02-12345678"
+    assert student.phone_type == active_student_user.phone_type == "landline"
+
+    account_body = logged_in_client.get(f"/accounts/{active_student_user.id}").get_data(as_text=True)
+    assert "new-mail@example.com" in account_body
+    assert "02-12345678" in account_body
+
+
 def test_student_role_cannot_view_other_students_detail(student_client, db):
     from app.models import Student
 
