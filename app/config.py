@@ -9,12 +9,20 @@ def _env_bool(name, default=False):
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _normalize_db_url(url):
+    # 專案只安裝 psycopg2；把 postgres:// 或 postgresql+psycopg:// 等寫法統一成 psycopg2 驅動
+    for prefix in ("postgres://", "postgresql://", "postgresql+psycopg://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
+    return url
+
+
 class BaseConfig:
     SECRET_KEY = os.environ.get("SECRET_KEY")
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
+    SQLALCHEMY_DATABASE_URI = _normalize_db_url(os.environ.get(
         "DATABASE_URL",
         "postgresql+psycopg2://postgres:postgres@localhost:5432/eternal_force",
-    )
+    ))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
