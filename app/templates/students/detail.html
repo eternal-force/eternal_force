@@ -80,7 +80,7 @@
         {% for p in student.purchase_records %}
           <div class="record-row">
             <div><span class="field-label-mobile">購買日期</span>{{ p.purchase_date.strftime('%Y-%m-%d') }}</div>
-            <div><span class="field-label-mobile">購買堂數</span>{{ p.quantity }} 堂</div>
+            <div><span class="field-label-mobile">購買堂數</span>{{ p.quantity }} 堂{% if p.opening_deduction %}<span class="muted">（期初已扣 {{ p.opening_deduction }} 堂）</span>{% endif %}</div>
             <div><span class="field-label-mobile">購買金額</span>{{ p.price if p.price is not none else '-' }}</div>
             <div><span class="field-label-mobile">備註</span>{{ p.notes or '-' }}</div>
             {% if current_user.role != 'student' %}

@@ -255,7 +255,12 @@ def update_purchase(record, data):
             raise ValidationError("購買日期為必填", field="purchase_date")
         record.purchase_date = data["purchase_date"]
     if "quantity" in data:
-        record.quantity = _validate_positive_int(data["quantity"], "購買堂數", max_value=999)
+        quantity = _validate_positive_int(data["quantity"], "購買堂數", max_value=999)
+        if quantity < (record.opening_deduction or 0):
+            raise ValidationError(
+                f"購買堂數不能小於期初已扣抵的 {record.opening_deduction} 堂", field="quantity"
+            )
+        record.quantity = quantity
     if "price" in data:
         record.price = _validate_purchase_price(data["price"])
     if "notes" in data:

@@ -92,6 +92,39 @@ def test_edit_purchase_recalculates_summary(logged_in_client, db):
     assert student.total_purchased == 20
 
 
+def test_edit_purchase_keeps_opening_deduction(logged_in_client, db):
+    create_student(logged_in_client, name="王小明")
+    student = _student(db)
+    add_purchase(logged_in_client, student.id, quantity="20")
+
+    from app.models import PurchaseRecord
+
+    record = PurchaseRecord.query.filter_by(student_id=student.id).first()
+    record.opening_deduction = 13
+    db.session.commit()
+    db.session.refresh(student)
+    assert (student.total_purchased, student.remaining) == (7, 7)
+
+    def edit(quantity):
+        resp = logged_in_client.get(f"/purchases/{record.id}/edit")
+        token = get_csrf_token(resp.get_data(as_text=True))
+        return logged_in_client.post(
+            f"/purchases/{record.id}/edit",
+            data={"purchase_date": "2026-01-01", "quantity": quantity, "price": "", "notes": "", "csrf_token": token},
+            follow_redirects=True,
+        )
+
+    resp = edit("12")
+    assert "不能小於期初已扣抵的 13 堂" in resp.get_data(as_text=True)
+    db.session.refresh(record)
+    assert record.quantity == 20
+
+    edit("25")
+    db.session.refresh(student)
+    assert student.total_purchased == 12
+    assert "期初已扣 13 堂" in logged_in_client.get(f"/students/{student.id}").get_data(as_text=True)
+
+
 def test_delete_purchase_recalculates_summary(logged_in_client, db):
     create_student(logged_in_client, name="王小明")
     student = _student(db)

@@ -97,7 +97,7 @@ class Student(db.Model):
 
     @property
     def total_purchased(self):
-        return sum((p.quantity for p in self.purchase_records), 0)
+        return sum((p.effective_quantity for p in self.purchase_records), 0)
 
     @property
     def total_attended(self):
@@ -142,6 +142,8 @@ class PurchaseRecord(db.Model):
     )
     purchase_date = db.Column(db.Date, nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
+    # 期初匯入時已用掉的堂數：保留原始購買堂數與金額，但不計入可用堂數，也不產生上課紀錄。
+    opening_deduction = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     price = db.Column(db.Numeric(10, 2))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
@@ -149,7 +151,17 @@ class PurchaseRecord(db.Model):
         db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
-    __table_args__ = (db.CheckConstraint("quantity > 0", name="ck_purchase_quantity_positive"),)
+    __table_args__ = (
+        db.CheckConstraint("quantity > 0", name="ck_purchase_quantity_positive"),
+        db.CheckConstraint(
+            "opening_deduction >= 0 AND opening_deduction <= quantity",
+            name="ck_purchase_opening_deduction_range",
+        ),
+    )
+
+    @property
+    def effective_quantity(self):
+        return self.quantity - (self.opening_deduction or 0)
 
     def to_dict(self):
         return {
@@ -157,6 +169,7 @@ class PurchaseRecord(db.Model):
             "student_id": self.student_id,
             "purchase_date": self.purchase_date.isoformat() if self.purchase_date else None,
             "quantity": self.quantity,
+            "opening_deduction": self.opening_deduction or 0,
             "price": float(self.price) if self.price is not None else None,
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,

@@ -2,6 +2,7 @@ from flask import Blueprint, flash, redirect, render_template, url_for
 
 from .. import services
 from ..auth.decorators import roles_required
+from ..extensions import db
 from ..forms import DeleteConfirmForm, PurchaseForm
 
 bp = Blueprint("purchases", __name__)
@@ -34,17 +35,22 @@ def edit_purchase(purchase_id):
     student = record.student
     form = PurchaseForm(obj=record)
     if form.validate_on_submit():
-        services.update_purchase(
-            record,
-            {
-                "purchase_date": form.purchase_date.data,
-                "quantity": form.quantity.data,
-                "price": form.price.data,
-                "notes": form.notes.data,
-            },
-        )
-        flash("購買紀錄已更新，堂數統計已重新計算。", "success")
-        return redirect(url_for("students.student_detail", student_id=student.id))
+        try:
+            services.update_purchase(
+                record,
+                {
+                    "purchase_date": form.purchase_date.data,
+                    "quantity": form.quantity.data,
+                    "price": form.price.data,
+                    "notes": form.notes.data,
+                },
+            )
+        except services.ValidationError as exc:
+            db.session.rollback()
+            form.quantity.errors.append(exc.message)
+        else:
+            flash("購買紀錄已更新，堂數統計已重新計算。", "success")
+            return redirect(url_for("students.student_detail", student_id=student.id))
     return render_template("purchases/form.html", form=form, mode="edit", student=student, record=record)
 
 
