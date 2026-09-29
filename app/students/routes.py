@@ -2,6 +2,7 @@ from datetime import date
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.orm import selectinload
 
 from .. import list_filters, services
 from ..auth.decorators import roles_required
@@ -27,7 +28,12 @@ def list_students():
     status = request.args.get("status", "").strip()
     page = request.args.get("page", 1, type=int)
 
-    query = Student.query
+    # 列表每張卡片都會顯示帳號與堂數統計，一次批次載入，避免每位學生各查 3 次資料庫
+    query = Student.query.options(
+        selectinload(Student.account),
+        selectinload(Student.purchase_records),
+        selectinload(Student.class_records),
+    )
     if search:
         query = query.filter(Student.name.ilike(f"%{search}%"))
     if status in ("active", "inactive"):
