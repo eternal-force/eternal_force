@@ -13,3 +13,7 @@ htmlcov/
 *.log
 .idea/
 .vscode/
+
+# 匯入用 Excel 可能含學生個資，不進版控；僅保留空白匯入範本
+*.xlsx
+!docs/學生堂數匯入範本.xlsx
