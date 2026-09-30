@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'new' %}新增公告{% else %}編輯公告{% endif %}{% endblock %}
+{% block content %}
+<div class="stack">
+  <a class="back-link" href="{{ url_for('announcements.list_announcements') }}">&larr; 回公告管理</a>
+
+  <div class="card">
+    <h2 style="margin-top:0;">{% if mode == 'new' %}新增公告{% else %}編輯公告{% endif %}</h2>
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="stack">
+        <div class="form-grid cols-3">
+          <div>
+            {{ form.announce_date.label }}
+            {{ form.announce_date(type="date") }}
+            {% for e in form.announce_date.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.publish_at.label }}
+            {{ form.publish_at() }}
+            {% for e in form.publish_at.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+          <div>
+            {{ form.unpublish_at.label }}
+            {{ form.unpublish_at() }}
+            {% for e in form.unpublish_at.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+          </div>
+        </div>
+        <p class="muted" style="margin:0;">時間皆為台灣時間。上架日期不得早於公告日期，下架時間需晚於上架時間；超過下架時間後公告會自動不再顯示。</p>
+
+        <div>
+          {{ form.title.label }}
+          {{ form.title(maxlength=100) }}
+          {% for e in form.title.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div>
+          {{ form.content.label }}
+          {{ form.content(rows=8, maxlength=2000) }}
+          {% for e in form.content.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <fieldset class="checkbox-group">
+          <legend>顯示對象</legend>
+          <label class="checkbox-label">{{ form.show_to_student() }} {{ form.show_to_student.label.text }}</label>
+          <label class="checkbox-label">{{ form.show_to_coach() }} {{ form.show_to_coach.label.text }}</label>
+          <label class="checkbox-label">{{ form.show_to_admin() }} {{ form.show_to_admin.label.text }}</label>
+          {% for e in form.show_to_student.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </fieldset>
+
+        <div>
+          {{ form.image.label }}
+          {% if item and item.has_image %}
+            <img class="announcement-form-preview" src="{{ url_for('announcements.announcement_image', announcement_id=item.id, v=item.updated_at.timestamp()|int) }}" alt="目前的公告圖片">
+            <label class="checkbox-label">{{ form.remove_image() }} {{ form.remove_image.label.text }}</label>
+            <p class="muted" style="margin:4px 0;">選擇新圖片會取代目前的圖片。</p>
+          {% endif %}
+          {{ form.image(accept="image/jpeg,image/png,image/webp") }}
+          <p class="muted" style="margin:4px 0 0;">選填，限 JPG、PNG、WebP，最大 2MB。</p>
+          {% for e in form.image.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div class="btn-group">
+          <button type="submit" class="btn btn-primary">{% if mode == 'new' %}新增{% else %}儲存變更{% endif %}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

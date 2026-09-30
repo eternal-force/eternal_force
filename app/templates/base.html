@@ -26,6 +26,7 @@
             <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('accounts.') %} active{% endif %}" href="{{ url_for('accounts.list_accounts') }}">
               帳號管理{% if pending_account_count > 0 %}<span class="nav-badge">{{ pending_account_count }}</span>{% endif %}
             </a>
+            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('announcements.') %} active{% endif %}" href="{{ url_for('announcements.list_announcements') }}">公告管理</a>
           {% endif %}
           <a class="app-nav-link{% if request.endpoint == 'auth.change_own_password' %} active{% endif %}" href="{{ url_for('auth.change_own_password') }}">修改密碼</a>
           <form action="{{ url_for('auth.logout') }}" method="post" class="logout-form">
@@ -41,6 +42,9 @@
       {% include "partials/_flash.html" %}
       {% block content %}{% endblock %}
     </main>
+    {% if login_announcements %}
+      {% include "partials/_announcement_popup.html" %}
+    {% endif %}
   </div>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}

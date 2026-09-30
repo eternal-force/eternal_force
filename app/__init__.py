@@ -1,8 +1,12 @@
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 from .config import get_config
 from .extensions import csrf, db, limiter, login_manager
 from .services import category_badge_class
+
+
+# 登入成功時設為 True，登入後第一個渲染的頁面會彈跳顯示公告並清除。
+LOGIN_ANNOUNCEMENTS_KEY = "show_login_announcements"
 
 
 def create_app(config_name=None):
@@ -35,6 +39,7 @@ def create_app(config_name=None):
     from .api.routes import bp as api_bp
     from .accounts.routes import bp as accounts_bp
     from .exercises.routes import bp as exercises_bp
+    from .announcements.routes import bp as announcements_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(students_bp)
@@ -43,6 +48,7 @@ def create_app(config_name=None):
     app.register_blueprint(api_bp)
     app.register_blueprint(accounts_bp)
     app.register_blueprint(exercises_bp)
+    app.register_blueprint(announcements_bp)
 
     # API 端點走 JSON,以 401/403 回應取代導向登入頁；CSRF 由呼叫端另行處理(見 README 說明)。
     csrf.exempt(api_bp)
@@ -115,5 +121,24 @@ def create_app(config_name=None):
         if current_user.is_authenticated and current_user.role in ("admin", "coach"):
             count = User.query.filter_by(status="pending").count()
         return {"pending_account_count": count}
+
+    @app.context_processor
+    def inject_login_announcements():
+        """登入後第一個畫面彈跳顯示上架中的公告(REQ-044)；須先修改密碼時延到改完密碼後才顯示。"""
+        from flask_login import current_user
+
+        from .services import list_live_announcements_for, taipei_now
+
+        if (
+            not current_user.is_authenticated
+            or current_user.must_change_password
+            or not session.get(LOGIN_ANNOUNCEMENTS_KEY)
+        ):
+            return {}
+        session.pop(LOGIN_ANNOUNCEMENTS_KEY)
+        return {
+            "login_announcements": list_live_announcements_for(current_user.role),
+            "announcement_today": taipei_now().date().isoformat(),
+        }
 
     return app

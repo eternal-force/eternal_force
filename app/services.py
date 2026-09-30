@@ -4,13 +4,13 @@
 
 import re
 import zlib
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
 from flask import abort
 
 from .extensions import db
-from .models import ClassExercise, ClassRecord, ExerciseCatalogItem, PurchaseRecord, Student, User
+from .models import Announcement, ClassExercise, ClassRecord, ExerciseCatalogItem, PurchaseRecord, Student, User
 
 
 class ValidationError(Exception):
@@ -704,3 +704,153 @@ def change_own_password(user, current_password, new_password):
     user.must_change_password = False
     db.session.commit()
     return user
+
+
+# ---------- 公告(REQ-044) ----------
+
+# 台灣沒有日光節約時間，固定 UTC+8；不依賴 tzdata(Windows 預設沒有)。
+TAIPEI_TZ = timezone(timedelta(hours=8), "Asia/Taipei")
+
+ANNOUNCEMENT_TITLE_MAX_LENGTH = 100
+ANNOUNCEMENT_CONTENT_MAX_LENGTH = 2000
+ANNOUNCEMENT_IMAGE_MAX_BYTES = 2 * 1024 * 1024
+ANNOUNCEMENT_STATUS_LABELS = {"scheduled": "未上架", "live": "上架中", "expired": "已下架"}
+_AUDIENCE_FIELDS = ("show_to_student", "show_to_coach", "show_to_admin")
+
+
+def taipei_now():
+    """目前的台灣時間(不帶時區)，與 Announcement 上/下架欄位的存法一致。"""
+    return datetime.now(TAIPEI_TZ).replace(tzinfo=None)
+
+
+def announcement_status(announcement, now=None):
+    now = now or taipei_now()
+    if now < announcement.publish_at:
+        return "scheduled"
+    if now >= announcement.unpublish_at:
+        return "expired"
+    return "live"
+
+
+def _detect_image_mime(data):
+    """以檔案開頭的魔術數字判斷圖片類型，不信任副檔名與瀏覽器送來的 Content-Type。"""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _validate_announcement_image(data):
+    if len(data) > ANNOUNCEMENT_IMAGE_MAX_BYTES:
+        raise ValidationError("圖片大小不能超過 2MB", field="image")
+    mime = _detect_image_mime(data)
+    if mime is None:
+        raise ValidationError("圖片格式需為 JPG、PNG 或 WebP", field="image")
+    return mime
+
+
+def _apply_announcement_data(announcement, data):
+    announce_date = data.get("announce_date")
+    publish_at = data.get("publish_at")
+    unpublish_at = data.get("unpublish_at")
+    title = (data.get("title") or "").strip()
+    content = (data.get("content") or "").strip()
+
+    if not announce_date:
+        raise ValidationError("公告日期為必填", field="announce_date")
+    if not publish_at:
+        raise ValidationError("上架日期時間為必填", field="publish_at")
+    if not unpublish_at:
+        raise ValidationError("下架日期時間為必填", field="unpublish_at")
+    if publish_at.date() < announce_date:
+        raise ValidationError("上架日期不得早於公告日期", field="publish_at")
+    if unpublish_at <= publish_at:
+        raise ValidationError("下架日期時間必須晚於上架日期時間", field="unpublish_at")
+    if not title:
+        raise ValidationError("公告標題為必填", field="title")
+    if len(title) > ANNOUNCEMENT_TITLE_MAX_LENGTH:
+        raise ValidationError(f"公告標題不能超過 {ANNOUNCEMENT_TITLE_MAX_LENGTH} 個字", field="title")
+    if not content:
+        raise ValidationError("公告內容為必填", field="content")
+    if len(content) > ANNOUNCEMENT_CONTENT_MAX_LENGTH:
+        raise ValidationError(f"公告內容不能超過 {ANNOUNCEMENT_CONTENT_MAX_LENGTH} 個字", field="content")
+    audience = {f: bool(data.get(f)) for f in _AUDIENCE_FIELDS}
+    if not any(audience.values()):
+        raise ValidationError("請至少選擇一個顯示對象", field="show_to_student")
+
+    image_data = data.get("image_data")
+    image_mime = _validate_announcement_image(image_data) if image_data else None
+
+    announcement.announce_date = announce_date
+    announcement.publish_at = publish_at.replace(second=0, microsecond=0)
+    announcement.unpublish_at = unpublish_at.replace(second=0, microsecond=0)
+    announcement.title = title
+    announcement.content = content
+    for field, value in audience.items():
+        setattr(announcement, field, value)
+    if image_data:
+        announcement.image_data = image_data
+        announcement.image_mime = image_mime
+    elif data.get("remove_image"):
+        announcement.image_data = None
+        announcement.image_mime = None
+
+
+def create_announcement(data, created_by=None):
+    announcement = Announcement(created_by_id=created_by.id if created_by else None)
+    _apply_announcement_data(announcement, data)
+    db.session.add(announcement)
+    db.session.commit()
+    return announcement
+
+
+def update_announcement(announcement, data):
+    _apply_announcement_data(announcement, data)
+    db.session.commit()
+    return announcement
+
+
+def delete_announcement(announcement):
+    db.session.delete(announcement)
+    db.session.commit()
+
+
+def get_announcement_or_404(announcement_id):
+    announcement = db.session.get(Announcement, announcement_id)
+    if not announcement:
+        abort(404)
+    return announcement
+
+
+def list_announcements(status=None):
+    now = taipei_now()
+    query = Announcement.query
+    if status == "scheduled":
+        query = query.filter(Announcement.publish_at > now)
+    elif status == "live":
+        query = query.filter(Announcement.publish_at <= now, Announcement.unpublish_at > now)
+    elif status == "expired":
+        query = query.filter(Announcement.unpublish_at <= now)
+    return query.order_by(Announcement.publish_at.desc(), Announcement.id.desc()).all()
+
+
+def list_live_announcements_for(role):
+    """目前上架中、且顯示對象包含該角色的公告，最新上架的在前。"""
+    column = {
+        "student": Announcement.show_to_student,
+        "coach": Announcement.show_to_coach,
+        "admin": Announcement.show_to_admin,
+    }.get(role)
+    if column is None:
+        return []
+    now = taipei_now()
+    return (
+        Announcement.query.filter(
+            column.is_(True), Announcement.publish_at <= now, Announcement.unpublish_at > now
+        )
+        .order_by(Announcement.publish_at.desc(), Announcement.id.desc())
+        .all()
+    )

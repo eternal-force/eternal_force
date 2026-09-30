@@ -1,6 +1,9 @@
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField
 from wtforms import (
+    BooleanField,
     DateField,
+    DateTimeLocalField,
     DecimalField,
     IntegerField,
     PasswordField,
@@ -177,3 +180,26 @@ class DeleteConfirmForm(FlaskForm):
     """僅用來攜帶 CSRF token 的空表單,搭配確認刪除頁使用。"""
 
     pass
+
+
+class AnnouncementForm(FlaskForm):
+    announce_date = DateField("公告日期", validators=[DataRequired(message="公告日期為必填")])
+    publish_at = DateTimeLocalField(
+        "上架日期時間", format="%Y-%m-%dT%H:%M", validators=[DataRequired(message="上架日期時間為必填")]
+    )
+    unpublish_at = DateTimeLocalField(
+        "下架日期時間", format="%Y-%m-%dT%H:%M", validators=[DataRequired(message="下架日期時間為必填")]
+    )
+    title = StringField(
+        "公告標題",
+        validators=[DataRequired(message="公告標題為必填"), Length(max=100, message="公告標題不能超過 100 個字")],
+    )
+    content = TextAreaField(
+        "公告內容",
+        validators=[DataRequired(message="公告內容為必填"), Length(max=2000, message="公告內容不能超過 2000 個字")],
+    )
+    show_to_student = BooleanField("學生", default=True)
+    show_to_coach = BooleanField("教練", default=True)
+    show_to_admin = BooleanField("管理者", default=True)
+    image = FileField("圖片")
+    remove_image = BooleanField("移除目前的圖片")

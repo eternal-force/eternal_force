@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}公告管理{% endblock %}
+{% block content %}
+<div class="stack">
+  <div class="row-between">
+    <h2 style="margin:0;">公告管理</h2>
+    <a href="{{ url_for('announcements.new_announcement') }}" class="btn btn-primary">+ 新增公告</a>
+  </div>
+
+  <details class="card">
+    <summary class="card-section-summary">
+      <h3 style="margin:0; display:inline;"><span class="section-toggle-arrow">&#9656;</span> 篩選</h3>
+    </summary>
+    <form method="get" class="filter-bar" style="margin-top:10px;">
+      <div>
+        <label for="status">狀態</label>
+        <select id="status" name="status">
+          <option value="" {% if not status %}selected{% endif %}>全部</option>
+          {% for key, label in status_labels.items() %}
+            <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">篩選</button>
+    </form>
+  </details>
+
+  {% set status_badge = {"scheduled": "badge-warning", "live": "badge-success", "expired": "badge-muted"} %}
+
+  {% if announcements|length == 0 %}
+    <div class="empty-state">
+      <p>{% if status %}沒有符合條件的公告。{% else %}目前還沒有公告，點選「新增公告」開始建立。{% endif %}</p>
+    </div>
+  {% else %}
+  <div class="card">
+    <div class="record-list">
+      <div class="record-row record-row-header announcement-row">
+        <div>公告日期</div>
+        <div>標題</div>
+        <div>上架時間</div>
+        <div>下架時間</div>
+        <div>顯示對象</div>
+        <div>狀態</div>
+        <div>操作</div>
+      </div>
+      {% for item, item_status in announcements %}
+        <div class="record-row announcement-row">
+          <div><span class="field-label-mobile">公告日期：</span>{{ item.announce_date.strftime('%Y-%m-%d') }}</div>
+          <div><strong>{{ item.title }}</strong>{% if item.has_image %} <span class="muted">(含圖片)</span>{% endif %}</div>
+          <div><span class="field-label-mobile">上架：</span>{{ item.publish_at.strftime('%Y-%m-%d %H:%M') }}</div>
+          <div><span class="field-label-mobile">下架：</span>{{ item.unpublish_at.strftime('%Y-%m-%d %H:%M') }}</div>
+          <div><span class="field-label-mobile">對象：</span>
+            {%- set audience = [] -%}
+            {%- if item.show_to_student %}{% set _ = audience.append('學生') %}{% endif -%}
+            {%- if item.show_to_coach %}{% set _ = audience.append('教練') %}{% endif -%}
+            {%- if item.show_to_admin %}{% set _ = audience.append('管理者') %}{% endif -%}
+            {{ audience|join('、') }}
+          </div>
+          <div><span class="badge {{ status_badge[item_status] }}">{{ status_labels[item_status] }}</span></div>
+          <div class="record-row-actions">
+            <a class="btn btn-sm" href="{{ url_for('announcements.edit_announcement', announcement_id=item.id) }}">編輯</a>
+            <form method="post" action="{{ url_for('announcements.delete_announcement', announcement_id=item.id) }}"
+                  data-confirm="確定要刪除公告「{{ item.title }}」嗎？">
+              {{ delete_form.hidden_tag() }}
+              <button type="submit" class="btn btn-sm btn-danger">刪除</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

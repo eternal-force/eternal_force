@@ -169,3 +169,121 @@
     setCollapsed(row, false);
   });
 })();
+
+// 登入後彈跳公告(REQ-044)：左右滑動檢視多則公告，勾選「今日不再顯示」後當天不再彈出這些公告。
+(function () {
+  var dialog = document.getElementById("announcement-popup");
+  if (!dialog || typeof dialog.showModal !== "function") return;
+
+  var today = dialog.getAttribute("data-today");
+  var storageKey = "ef-announcements-hidden:" + dialog.getAttribute("data-user-id");
+  var track = dialog.querySelector(".announcement-track");
+  var counter = dialog.querySelector(".announcement-popup-counter");
+  var footer = dialog.querySelector(".announcement-popup-footer");
+  var dotsEl = dialog.querySelector(".announcement-dots");
+  var prevBtn = dialog.querySelector(".announcement-prev");
+  var nextBtn = dialog.querySelector(".announcement-next");
+  var hideToday = dialog.querySelector(".announcement-hide-today");
+
+  function readHidden() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+      if (saved && saved.date === today && Array.isArray(saved.ids)) return saved.ids;
+    } catch (err) {
+      // localStorage 無法使用(例如無痕模式)時，視為沒有隱藏任何公告
+    }
+    return [];
+  }
+
+  var hiddenIds = readHidden();
+  var slides = Array.prototype.filter.call(
+    dialog.querySelectorAll(".announcement-slide"),
+    function (slide) {
+      var hidden = hiddenIds.indexOf(slide.getAttribute("data-announcement-id")) !== -1;
+      slide.hidden = hidden;
+      return !hidden;
+    }
+  );
+  if (slides.length === 0) return;
+
+  var current = 0;
+  var dots = slides.map(function (slide, index) {
+    var dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "announcement-dot";
+    dot.setAttribute("aria-label", "第 " + (index + 1) + " 則公告");
+    dot.addEventListener("click", function () {
+      goTo(index);
+    });
+    dotsEl.appendChild(dot);
+    return dot;
+  });
+
+  function render() {
+    counter.textContent = slides.length > 1 ? current + 1 + " / " + slides.length : "";
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === slides.length - 1;
+    dots.forEach(function (dot, index) {
+      dot.setAttribute("aria-current", index === current ? "true" : "false");
+    });
+  }
+
+  function goTo(index) {
+    current = Math.max(0, Math.min(slides.length - 1, index));
+    track.scrollTo({ left: current * track.clientWidth, behavior: "smooth" });
+    render();
+  }
+
+  footer.hidden = slides.length < 2;
+  prevBtn.addEventListener("click", function () {
+    goTo(current - 1);
+  });
+  nextBtn.addEventListener("click", function () {
+    goTo(current + 1);
+  });
+
+  // 使用者用手指/觸控板滑動時，依捲動位置同步目前頁碼
+  var scrollTimer = null;
+  track.addEventListener("scroll", function () {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(function () {
+      var index = Math.round(track.scrollLeft / track.clientWidth);
+      if (index !== current && index >= 0 && index < slides.length) {
+        current = index;
+        render();
+      }
+    }, 80);
+  });
+
+  track.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      goTo(current - 1);
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      goTo(current + 1);
+    }
+  });
+
+  // 點視窗外的半透明背景也可關閉(背景點擊的 target 是 dialog 本身)
+  dialog.addEventListener("click", function (event) {
+    if (event.target === dialog) dialog.close();
+  });
+
+  dialog.addEventListener("close", function () {
+    if (!hideToday.checked) return;
+    var ids = readHidden().concat(
+      slides.map(function (slide) {
+        return slide.getAttribute("data-announcement-id");
+      })
+    );
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ date: today, ids: ids }));
+    } catch (err) {
+      // 無法儲存時僅本次關閉，下次登入仍會顯示
+    }
+  });
+
+  render();
+  dialog.showModal();
+})();

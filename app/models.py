@@ -274,3 +274,42 @@ class ClassExercise(db.Model):
             "note": self.note,
             "sort_order": self.sort_order,
         }
+
+
+class Announcement(db.Model):
+    """登入後彈跳顯示的公告(REQ-044)。上/下架時間存台灣時間(不帶時區)，比對時也用台灣時間。"""
+
+    __tablename__ = "announcements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    announce_date = db.Column(db.Date, nullable=False)
+    publish_at = db.Column(db.DateTime, nullable=False, index=True)
+    unpublish_at = db.Column(db.DateTime, nullable=False, index=True)
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    show_to_student = db.Column(db.Boolean, nullable=False, default=True)
+    show_to_coach = db.Column(db.Boolean, nullable=False, default=True)
+    show_to_admin = db.Column(db.Boolean, nullable=False, default=True)
+    # 圖片存資料庫：Render 主機硬碟是暫時性的，重新部署後上傳到硬碟的檔案會消失。
+    image_data = db.deferred(db.Column(db.LargeBinary))
+    image_mime = db.Column(db.String(20))
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"))
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+    __table_args__ = (
+        db.CheckConstraint("unpublish_at > publish_at", name="ck_announcement_publish_window"),
+    )
+
+    @property
+    def has_image(self):
+        return self.image_mime is not None
+
+    def visible_to(self, role):
+        return {
+            "student": self.show_to_student,
+            "coach": self.show_to_coach,
+            "admin": self.show_to_admin,
+        }.get(role, False)

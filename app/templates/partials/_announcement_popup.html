@@ -1,0 +1,30 @@
+{# 登入後彈跳公告(REQ-044)：多則公告可左右滑動檢視；「今日不再顯示」記在瀏覽器 localStorage。 #}
+<dialog id="announcement-popup" class="announcement-popup" aria-labelledby="announcement-popup-heading"
+        data-user-id="{{ current_user.id }}" data-today="{{ announcement_today }}">
+  <div class="announcement-popup-header">
+    <h2 id="announcement-popup-heading">公告</h2>
+    <span class="announcement-popup-counter muted" aria-live="polite"></span>
+    <button type="button" class="announcement-popup-close" data-close-dialog aria-label="關閉公告">&times;</button>
+  </div>
+  <div class="announcement-track" tabindex="0">
+    {% for item in login_announcements %}
+      <article class="announcement-slide" data-announcement-id="{{ item.id }}">
+        <p class="muted announcement-slide-date">{{ item.announce_date.strftime('%Y-%m-%d') }}</p>
+        <h3>{{ item.title }}</h3>
+        {% if item.has_image %}
+          <img src="{{ url_for('announcements.announcement_image', announcement_id=item.id, v=item.updated_at.timestamp()|int) }}" alt="{{ item.title }}" loading="lazy">
+        {% endif %}
+        <p class="announcement-slide-content">{{ item.content }}</p>
+      </article>
+    {% endfor %}
+  </div>
+  <div class="announcement-popup-footer">
+    <button type="button" class="btn btn-sm announcement-prev" aria-label="上一則">&lsaquo;</button>
+    <div class="announcement-dots"></div>
+    <button type="button" class="btn btn-sm announcement-next" aria-label="下一則">&rsaquo;</button>
+  </div>
+  <div class="announcement-popup-actions">
+    <label class="checkbox-label"><input type="checkbox" class="announcement-hide-today"> 今日不再顯示</label>
+    <button type="button" class="btn btn-primary btn-sm" data-close-dialog>關閉</button>
+  </div>
+</dialog>
