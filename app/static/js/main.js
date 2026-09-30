@@ -2,9 +2,25 @@
   var toggle = document.getElementById("nav-toggle");
   var nav = document.getElementById("app-nav");
   if (toggle && nav) {
-    toggle.addEventListener("click", function () {
-      var open = nav.classList.toggle("open");
+    var setNavOpen = function (open) {
+      nav.classList.toggle("open", open);
       toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      toggle.setAttribute("aria-label", open ? "關閉選單" : "開啟選單");
+    };
+    toggle.addEventListener("click", function () {
+      setNavOpen(!nav.classList.contains("open"));
+    });
+    // 浮動選單：點選單以外的地方或按 Esc 即收合
+    document.addEventListener("click", function (event) {
+      if (nav.classList.contains("open") && !nav.contains(event.target) && !toggle.contains(event.target)) {
+        setNavOpen(false);
+      }
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && nav.classList.contains("open")) {
+        setNavOpen(false);
+        toggle.focus();
+      }
     });
   }
 
@@ -253,6 +269,39 @@
         render();
       }
     }, 80);
+  });
+
+  // 手機左右滑動：每則公告本身可上下捲動，瀏覽器常把手指的水平滑動吃掉而不會帶動外層左右捲動，
+  // 因此 CSS 以 touch-action: pan-y 只讓瀏覽器處理上下捲動，左右滑動由這裡判斷方向後換頁。
+  var SWIPE_MIN_DISTANCE = 40;
+  var touchStartX = null;
+  var touchStartY = null;
+  track.addEventListener(
+    "touchstart",
+    function (event) {
+      if (event.touches.length !== 1) {
+        touchStartX = null;
+        return;
+      }
+      touchStartX = event.touches[0].clientX;
+      touchStartY = event.touches[0].clientY;
+    },
+    { passive: true }
+  );
+  track.addEventListener(
+    "touchend",
+    function (event) {
+      if (touchStartX === null) return;
+      var dx = event.changedTouches[0].clientX - touchStartX;
+      var dy = event.changedTouches[0].clientY - touchStartY;
+      touchStartX = null;
+      if (Math.abs(dx) < SWIPE_MIN_DISTANCE || Math.abs(dx) < Math.abs(dy)) return;
+      goTo(dx < 0 ? current + 1 : current - 1);
+    },
+    { passive: true }
+  );
+  track.addEventListener("touchcancel", function () {
+    touchStartX = null;
   });
 
   track.addEventListener("keydown", function (event) {

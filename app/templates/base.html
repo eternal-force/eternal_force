@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}eternal_force{% endblock %} | eternal_force 健身教學管理</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="{{ asset_url('css/style.css') }}">
 </head>
 <body>
   <div class="app-shell">
@@ -12,30 +15,29 @@
     <a class="app-banner" href="{{ url_for('students.list_students') }}">
       <img src="{{ url_for('static', filename='img/logo_banner.png') }}" alt="恆力體能">
     </a>
-    <header class="app-header">
-      <div class="app-header-bar">
-        <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="app-nav" aria-label="開啟選單">
-          <span></span><span></span><span></span>
-        </button>
-        <nav class="app-nav" id="app-nav">
-          {% if current_user.role == 'student' %}
-            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('students.') %} active{% endif %}" href="{{ url_for('students.list_students') }}">我的紀錄</a>
-          {% else %}
-            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('students.') %} active{% endif %}" href="{{ url_for('students.list_students') }}">學生列表</a>
-            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('exercises.') %} active{% endif %}" href="{{ url_for('exercises.list_exercises') }}">訓練項目</a>
-            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('accounts.') %} active{% endif %}" href="{{ url_for('accounts.list_accounts') }}">
-              帳號管理{% if pending_account_count > 0 %}<span class="nav-badge">{{ pending_account_count }}</span>{% endif %}
-            </a>
-            <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('announcements.') %} active{% endif %}" href="{{ url_for('announcements.list_announcements') }}">公告管理</a>
-          {% endif %}
-          <a class="app-nav-link{% if request.endpoint == 'auth.change_own_password' %} active{% endif %}" href="{{ url_for('auth.change_own_password') }}">修改密碼</a>
-          <form action="{{ url_for('auth.logout') }}" method="post" class="logout-form">
-            {{ logout_form.hidden_tag() }}
-            <button type="submit" class="app-nav-link app-nav-link-btn">登出（{{ current_user.username }}）</button>
-          </form>
-        </nav>
-      </div>
-    </header>
+    <div class="nav-float">
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="app-nav" aria-label="開啟選單">
+        <span></span><span></span><span></span>
+        {% if current_user.role != 'student' and pending_account_count > 0 %}<i class="nav-toggle-dot" aria-hidden="true"></i>{% endif %}
+      </button>
+      <nav class="app-nav" id="app-nav" aria-label="主選單">
+        {% if current_user.role == 'student' %}
+          <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('students.') %} active{% endif %}" href="{{ url_for('students.list_students') }}"><i class="fa-solid fa-user fa-fw" aria-hidden="true"></i>我的紀錄</a>
+        {% else %}
+          <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('students.') %} active{% endif %}" href="{{ url_for('students.list_students') }}"><i class="fa-solid fa-user fa-fw" aria-hidden="true"></i>學生列表</a>
+          <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('exercises.') %} active{% endif %}" href="{{ url_for('exercises.list_exercises') }}"><i class="fa-solid fa-dumbbell fa-fw" aria-hidden="true"></i>訓練項目</a>
+          <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('accounts.') %} active{% endif %}" href="{{ url_for('accounts.list_accounts') }}">
+            <i class="fa-solid fa-users fa-fw" aria-hidden="true"></i>帳號管理{% if pending_account_count > 0 %}<span class="nav-badge">{{ pending_account_count }}</span>{% endif %}
+          </a>
+          <a class="app-nav-link{% if request.endpoint and request.endpoint.startswith('announcements.') %} active{% endif %}" href="{{ url_for('announcements.list_announcements') }}"><i class="fa-solid fa-bullhorn fa-fw" aria-hidden="true"></i>公告管理</a>
+        {% endif %}
+        <a class="app-nav-link{% if request.endpoint == 'auth.change_own_password' %} active{% endif %}" href="{{ url_for('auth.change_own_password') }}"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i>修改密碼</a>
+        <form action="{{ url_for('auth.logout') }}" method="post" class="logout-form">
+          {{ logout_form.hidden_tag() }}
+          <button type="submit" class="app-nav-link app-nav-link-btn"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i>登出（{{ current_user.username }}）</button>
+        </form>
+      </nav>
+    </div>
     {% endif %}
 
     <main class="app-main">
@@ -46,7 +48,7 @@
       {% include "partials/_announcement_popup.html" %}
     {% endif %}
   </div>
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ asset_url('js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

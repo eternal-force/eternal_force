@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 
 from .config import get_config
@@ -79,7 +81,10 @@ def create_app(config_name=None):
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers.setdefault(
             "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'",
+            # Font Awesome 圖示(選單)從 cdnjs 載入，樣式表另以 SRI 雜湊鎖定內容
+            "default-src 'self'; img-src 'self' data:; "
+            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+            "font-src 'self' https://cdnjs.cloudflare.com",
         )
         return response
 
@@ -106,6 +111,13 @@ def create_app(config_name=None):
     def healthz():
         """Render 健康檢查用，不需登入、不查資料庫，僅確認應用程式行程存活。"""
         return jsonify({"status": "ok"})
+
+    @app.template_global()
+    def asset_url(filename):
+        """靜態檔網址加上檔案修改時間，檔案一改瀏覽器(特別是手機)就會重新下載，不會沿用舊的快取。"""
+        path = os.path.join(app.static_folder, filename)
+        version = int(os.path.getmtime(path)) if os.path.exists(path) else 0
+        return url_for("static", filename=filename, v=version)
 
     @app.context_processor
     def inject_logout_form():
