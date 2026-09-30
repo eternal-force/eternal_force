@@ -1,14 +1,17 @@
 /* eternal_force — mobile-first RWD 樣式 */
 
 :root {
-  --color-bg: #f5f6f8;
-  --color-surface: #ffffff;
-  --color-border: #e2e5ea;
-  --color-text: #1f2430;
-  --color-text-muted: #6b7280;
+  --color-bg: #f6f5f2;          /* 暖灰白：登入前後的網頁背景 */
+  --color-surface: #ffffff;     /* 白色：學生卡片等卡片背景 */
+  --color-border: #e5e2dc;      /* 淺暖灰：卡片邊框 */
+  --color-text: #202020;        /* 深黑灰：主要文字 */
+  --color-text-muted: #6b7280;  /* 灰色：次要文字 */
+  --color-nav-hover: #b96f1d;   /* 深金橘：上方功能按鈕 hover */
+  --color-success: #22a06b;     /* 綠色：成功／在籍 */
+  --color-warning-bg: #fff3df;  /* 淡橘底：卡片中的警示訊息 */
   --color-primary: #2563eb;
   --color-primary-dark: #1d4ed8;
-  --color-accent: #16a34a;
+  --color-accent: var(--color-success);
   --color-danger: #dc2626;
   --color-warning: #d97706;
   --radius: 10px;
@@ -127,13 +130,18 @@ button {
 }
 
 .app-nav-link:hover {
-  background: #f0f2f5;
-  color: var(--color-text);
+  background: var(--color-nav-hover);
+  color: #fff;
 }
 
 .app-nav-link.active {
   background: #eef2ff;
   color: var(--color-primary-dark);
+}
+
+.app-nav-link.active:hover {
+  background: var(--color-nav-hover);
+  color: #fff;
 }
 
 .app-nav-link-btn {
@@ -283,8 +291,8 @@ button {
   overflow-wrap: anywhere;
 }
 
-.badge-success { background: #dcfce7; color: #166534; }
-.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-success { background: var(--color-success); color: #fff; }
+.badge-warning { background: var(--color-warning-bg); color: #92400e; }
 .badge-danger { background: #fee2e2; color: #991b1b; }
 .badge-muted { background: #f1f5f9; color: #475569; }
 
@@ -401,6 +409,20 @@ button {
   .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
 }
 
+/* 格線欄位預設不會縮到比內容窄，日期/時間欄位在手機上會撐破版面 */
+.form-grid > * {
+  min-width: 0;
+}
+
+/* 公告的上/下架是「日期＋時間」欄位，較寬，桌機寬度才排成三欄 */
+.form-grid.announcement-dates {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .form-grid.announcement-dates { grid-template-columns: 1fr 1fr 1fr; }
+}
+
 label {
   display: block;
   font-size: 0.8rem;
@@ -419,6 +441,30 @@ input, textarea, select {
   background: #fff;
   color: var(--color-text);
   min-height: 42px;
+}
+
+/* 日期/時間欄位：手機瀏覽器有內建最小寬度，限制在欄位寬度內 */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* iOS Safari 的日期欄位會忽略寬度設定且文字置中、空值時高度塌陷，需取消原生外觀 */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+input::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.2em;
 }
 
 textarea {
@@ -747,7 +793,7 @@ details.card[open] > summary .section-toggle-arrow {
   border: 1px solid transparent;
 }
 
-.flash-success { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+.flash-success { background: #e6f5ee; color: #17704b; border-color: var(--color-success); }
 .flash-danger { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 .flash-warning { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 .flash-info { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
@@ -972,7 +1018,7 @@ details.card[open] > summary .section-toggle-arrow {
   object-fit: contain;
   border-radius: 8px;
   margin-bottom: 12px;
-  background: #f5f6f8;
+  background: var(--color-bg);
 }
 
 .announcement-slide-content {
