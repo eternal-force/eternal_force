@@ -24,7 +24,7 @@ def create_student(client, **overrides):
 def test_logo_links_to_student_list(logged_in_client):
     resp = logged_in_client.get("/students/")
     body = resp.get_data(as_text=True)
-    assert 'class="app-title" href="/students/"' in body
+    assert 'class="app-banner" href="/students/"' in body
 
 
 def test_create_student_requires_name(logged_in_client):

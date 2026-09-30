@@ -60,32 +60,26 @@ button {
 .app-header-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px 16px;
   flex-wrap: wrap;
   max-width: 1080px;
   margin: 0 auto;
 }
 
-.app-title {
-  text-decoration: none;
-  color: inherit;
-}
-
-.app-logo {
+/* 橫幅等比例縮至高度 150px，兩側空白以橫幅底色填滿整個寬度 */
+.app-banner {
   display: block;
-  height: 40px;
-  width: 40px;
-  border-radius: 8px;
-  object-fit: cover;
+  background: #232323;
 }
 
-.app-title .subtitle {
-  margin: 4px 0 0;
-  font-size: 0.78rem;
-  font-family: "標楷體", "DFKai-SB", "BiauKai", serif;
-  font-weight: bold;
-  color: var(--color-text-muted);
+.app-banner img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 150px;
+  margin: 0 auto;
 }
 
 .nav-toggle {
@@ -777,13 +771,13 @@ details.card[open] > summary .section-toggle-arrow {
   max-width: 380px;
 }
 
-.auth-logo {
+/* 橫幅貼齊卡片上緣與左右邊緣 */
+.auth-banner {
   display: block;
-  height: 96px;
-  width: 96px;
-  margin: 0 auto 4px;
-  border-radius: 12px;
-  object-fit: cover;
+  width: calc(100% + 32px);
+  height: auto;
+  margin: -16px -16px 16px;
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .auth-subtitle {
