@@ -51,6 +51,21 @@ def create_app(config_name=None):
 
     commands.register(app)
 
+    # 須修改密碼的帳號只能進入修改密碼頁與登出，其餘頁面一律導向修改密碼(API 回 403)。
+    _PASSWORD_CHANGE_ALLOWED = {"auth.change_own_password", "auth.logout", "static", "healthz"}
+
+    @app.before_request
+    def require_password_change():
+        from flask_login import current_user
+
+        if not current_user.is_authenticated or not current_user.must_change_password:
+            return None
+        if request.endpoint in _PASSWORD_CHANGE_ALLOWED:
+            return None
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "請先修改密碼"}), 403
+        return redirect(url_for("auth.change_own_password"))
+
     @app.after_request
     def set_security_headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"

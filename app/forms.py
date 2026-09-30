@@ -94,6 +94,17 @@ class SetPasswordForm(FlaskForm):
     )
 
 
+class ChangeOwnPasswordForm(FlaskForm):
+    current_password = PasswordField("目前密碼", validators=[DataRequired(message="請輸入目前密碼")])
+    new_password = PasswordField(
+        "新密碼", validators=[DataRequired(message="密碼為必填"), Length(min=8, message="密碼長度至少需 8 碼")]
+    )
+    confirm_password = PasswordField(
+        "確認新密碼",
+        validators=[DataRequired(message="請再次輸入密碼"), EqualTo("new_password", message="兩次輸入的密碼不一致")],
+    )
+
+
 class CoachForm(FlaskForm):
     username = StringField(
         "帳號", validators=[DataRequired(message="帳號為必填"), Length(max=80), _validate_username_unique]

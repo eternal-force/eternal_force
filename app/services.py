@@ -608,6 +608,7 @@ def create_coach_account(data):
         email=_blank_to_none(data.get("email")),
         phone=phone,
         phone_type=phone_type,
+        must_change_password=True,
     )
     user.set_password(data["password"])
     db.session.add(user)
@@ -687,6 +688,19 @@ def set_account_role(user, target_role):
 
 
 def set_account_password(user, new_password):
+    """管理者替他人設定密碼：對方下次登入須自行修改。"""
     user.set_password(new_password)
+    user.must_change_password = True
+    db.session.commit()
+    return user
+
+
+def change_own_password(user, current_password, new_password):
+    if not user.check_password(current_password):
+        raise ValidationError("目前密碼不正確", field="current_password")
+    if current_password == new_password:
+        raise ValidationError("新密碼不可與目前密碼相同", field="new_password")
+    user.set_password(new_password)
+    user.must_change_password = False
     db.session.commit()
     return user

@@ -453,5 +453,6 @@ def test_new_coach_is_active_immediately_without_verification(logged_in_client, 
     token = get_csrf_token(home.get_data(as_text=True))
     logged_in_client.post("/logout", data={"csrf_token": token}, follow_redirects=True)
 
+    # 密碼由他人設定，登入後先導向修改密碼(不需驗證即可登入)
     resp = login(logged_in_client, "new_coach", "NewCoach123")
-    assert "登入成功" in resp.get_data(as_text=True)
+    assert "首次登入請先修改密碼" in resp.get_data(as_text=True)

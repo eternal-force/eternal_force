@@ -27,6 +27,7 @@
               帳號管理{% if pending_account_count > 0 %}<span class="nav-badge">{{ pending_account_count }}</span>{% endif %}
             </a>
           {% endif %}
+          <a class="app-nav-link{% if request.endpoint == 'auth.change_own_password' %} active{% endif %}" href="{{ url_for('auth.change_own_password') }}">修改密碼</a>
           <form action="{{ url_for('auth.logout') }}" method="post" class="logout-form">
             {{ logout_form.hidden_tag() }}
             <button type="submit" class="app-nav-link app-nav-link-btn">登出（{{ current_user.username }}）</button>

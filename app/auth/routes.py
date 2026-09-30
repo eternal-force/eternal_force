@@ -3,7 +3,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 
 from .. import list_filters, services
 from ..extensions import limiter
-from ..forms import LoginForm, RegisterForm
+from ..forms import ChangeOwnPasswordForm, LoginForm, RegisterForm
 from ..models import User
 
 bp = Blueprint("auth", __name__)
@@ -25,6 +25,9 @@ def login():
                 flash("此帳號已被停用，請聯絡管理者。", "danger")
             else:
                 login_user(user)
+                if user.must_change_password:
+                    flash("首次登入請先修改密碼。", "warning")
+                    return redirect(url_for("auth.change_own_password"))
                 flash("登入成功。", "success")
                 next_url = request.args.get("next")
                 if next_url and next_url.startswith("/"):
@@ -61,6 +64,21 @@ def register():
         return redirect(url_for("auth.login"))
 
     return render_template("auth/register.html", form=form)
+
+
+@bp.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_own_password():
+    form = ChangeOwnPasswordForm()
+    if form.validate_on_submit():
+        try:
+            services.change_own_password(current_user, form.current_password.data, form.new_password.data)
+        except services.ValidationError as exc:
+            getattr(form, exc.field).errors.append(exc.message)
+        else:
+            flash("密碼已更新。", "success")
+            return redirect(url_for("students.list_students"))
+    return render_template("auth/change_password.html", form=form)
 
 
 @bp.route("/logout", methods=["POST"])

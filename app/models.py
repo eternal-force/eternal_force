@@ -37,6 +37,8 @@ class User(UserMixin, db.Model):
         db.Enum("male", "female", "other", name="user_gender_enum", native_enum=False)
     )
     goal = db.Column(db.Text)
+    # 密碼由他人設定(管理者建立/重設、批次建立)時為 True，登入後須先自行修改密碼才能使用其他功能。
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     student_id = db.Column(
         db.Integer, db.ForeignKey("students.id", ondelete="SET NULL"), unique=True
     )
