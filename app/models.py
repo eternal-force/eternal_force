@@ -39,11 +39,12 @@ class User(UserMixin, db.Model):
     goal = db.Column(db.Text)
     # 密碼由他人設定(管理者建立/重設、批次建立)時為 True，登入後須先自行修改密碼才能使用其他功能。
     must_change_password = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    # 一對二的學生卡片會有兩個帳號指向同一筆(REQ-053)，因此不設唯一限制；人數上限由服務層檢查。
     student_id = db.Column(
-        db.Integer, db.ForeignKey("students.id", ondelete="SET NULL"), unique=True
+        db.Integer, db.ForeignKey("students.id", ondelete="SET NULL"), index=True
     )
     student = db.relationship(
-        "Student", foreign_keys=[student_id], backref=db.backref("account", uselist=False)
+        "Student", foreign_keys=[student_id], backref=db.backref("accounts", order_by="User.id")
     )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
 
@@ -79,6 +80,13 @@ class Student(db.Model):
         nullable=False,
     )
     notes = db.Column(db.Text)
+    # 一對二：兩個帳號共用這張卡片的堂數、購課與上課紀錄(REQ-053)。
+    class_type = db.Column(
+        db.Enum("one_on_one", "one_on_two", name="student_class_type_enum", native_enum=False),
+        default="one_on_one",
+        server_default="one_on_one",
+        nullable=False,
+    )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(
         db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
@@ -98,12 +106,21 @@ class Student(db.Model):
     )
 
     @property
+    def is_pair(self):
+        return self.class_type == "one_on_two"
+
+    @property
+    def account(self):
+        """一對一卡片對應的登入帳號；一對二請改用 accounts。"""
+        return self.accounts[0] if self.accounts else None
+
+    @property
     def total_purchased(self):
         return sum((p.effective_quantity for p in self.purchase_records), 0)
 
     @property
     def total_attended(self):
-        return len(self.class_records)
+        return sum(1 for c in self.class_records if not c.is_opening)
 
     @property
     def remaining(self):
@@ -121,6 +138,8 @@ class Student(db.Model):
             "enrollment_date": self.enrollment_date.isoformat() if self.enrollment_date else None,
             "status": self.status,
             "notes": self.notes,
+            "class_type": self.class_type,
+            "accounts": [{"user_id": a.id, "username": a.username, "name": a.name} for a in self.accounts],
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -189,6 +208,8 @@ class ClassRecord(db.Model):
     class_date = db.Column(db.Date, nullable=False)
     class_time = db.Column(db.Time, nullable=False)
     coach_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    # 期初匯入時建立的紀錄：只用來記錄學生的教練與最後上課日，不計入已上堂數(堂數已由購課紀錄的期初扣抵處理)。
+    is_opening = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(
@@ -211,6 +232,7 @@ class ClassRecord(db.Model):
             "class_time": self.class_time.isoformat() if self.class_time else None,
             "coach_id": self.coach_id,
             "coach_name": self.coach.name if self.coach else None,
+            "is_opening": self.is_opening,
             "notes": self.notes,
             "exercises": [e.to_dict() for e in self.exercises],
             "created_at": self.created_at.isoformat() if self.created_at else None,

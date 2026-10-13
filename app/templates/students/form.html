@@ -9,7 +9,7 @@
   {% endif %}
 
   <div class="card">
-    <h2 style="margin-top:0;">{% if mode == 'new' %}新增學生{% else %}編輯學生資料{% endif %}</h2>
+    <h2 style="margin-top:0;">{% if mode == 'new' %}新增學生{% else %}編輯學生資料{% if member is defined %}（{{ member.name or member.username }}）{% endif %}{% endif %}</h2>
     <form method="post" novalidate>
       {{ form.hidden_tag() }}
       <div class="stack">

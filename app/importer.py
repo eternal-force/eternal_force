@@ -1,11 +1,14 @@
 """學生堂數期初批量匯入：產生 Excel 範本、讀取並驗證、寫入資料庫。
 
 一列代表一位學生：建立學生名冊與一筆購課紀錄(保留原始購買堂數與金額)。
-「已使用堂數」記在購課紀錄的期初扣抵堂數，不產生上課紀錄，
+「已使用堂數」記在購課紀錄的期初扣抵堂數，
 因此總購買堂數＝剩餘堂數＝購買堂數－已使用堂數，已上堂數為 0。
+已使用堂數大於 0 的學生另建立一筆「初始匯入」上課紀錄(最後上課日期＋目前教練、無訓練項目、不計入已上堂數)，
+用來把學生歸給教練；已使用堂數為 0 的學生不建立，所有教練都看得到。
+有填手機的學生一併建立登入帳號：帳號與初始密碼皆為手機號碼，首次登入須自行修改密碼。
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.comments import Comment
@@ -14,17 +17,18 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 from . import services
 from .extensions import db
-from .models import PurchaseRecord, Student
+from .models import ClassRecord, PurchaseRecord, Student, User
 
 DATA_SHEET = "學生匯入"
 HELP_SHEET = "填寫說明"
 MAX_ROWS = 500
+OPENING_NOTE = "初始匯入"
 
 # (欄位 key, 表頭, 必填, 欄寬, 說明)
 COLUMNS = [
     ("name", "學生姓名", True, 14, "最多 20 字，不可含特殊符號；不可與系統內既有學生同名"),
     ("phone_type", "電話類型", False, 10, "手機 / 市話（有填電話時必填）"),
-    ("phone", "聯絡電話", False, 15, "手機 0912345678；市話 02-12345678"),
+    ("phone", "聯絡電話", False, 15, "手機 0912345678；市話 02-12345678。填手機會一併建立登入帳號(帳號與初始密碼皆為手機號碼)"),
     ("email", "Email", False, 24, "選填"),
     ("birthday", "生日", False, 12, "日期格式 YYYY-MM-DD"),
     ("gender", "性別", False, 8, "男 / 女 / 其他"),
@@ -32,7 +36,8 @@ COLUMNS = [
     ("quantity", "購買堂數", True, 10, "1–999 的整數"),
     ("price", "購買金額", False, 12, "選填，數字，最多 1,000,000"),
     ("used", "已使用堂數", True, 11, "0 到購買堂數之間的整數；沒用過填 0"),
-    ("last_class_date", "最後上課日期", False, 13, "僅供參考，匯入時忽略"),
+    ("last_class_date", "最後上課日期", False, 13, "已使用堂數大於 0 時必填；日期格式 YYYY-MM-DD，不可早於購買日期、不可晚於今天"),
+    ("coach", "目前教練", False, 12, "已使用堂數大於 0 時必填；請填系統內啟用中教練的姓名(可用下拉選單)"),
     ("notes", "備註", False, 24, "選填，寫入學生備註"),
 ]
 REMAINING_HEADER = "剩餘堂數（自動計算，匯入時忽略）"
@@ -52,8 +57,17 @@ EXAMPLE_ROW = {
     "price": 24000,
     "used": 8,
     "last_class_date": date(2026, 9, 20),
+    "coach": "教練姓名",
     "notes": "範例列，匯入前請刪除",
 }
+
+
+def _active_coaches_by_name():
+    coaches = {}
+    for coach in services.list_active_coaches():
+        if coach.name:
+            coaches.setdefault(coach.name.strip(), []).append(coach.id)
+    return coaches
 
 
 def build_template(path):
@@ -91,8 +105,12 @@ def build_template(path):
 
     col_of = {key: idx for idx, (key, *_rest) in enumerate(COLUMNS, start=1)}
     date_keys = {"birthday", "purchase_date", "last_class_date"}
+    coach_names = sorted(_active_coaches_by_name())
+    example_row = dict(EXAMPLE_ROW)
+    if coach_names:
+        example_row["coach"] = coach_names[0]
     for idx, (key, *_rest) in enumerate(COLUMNS, start=1):
-        cell = ws.cell(row=2, column=idx, value=EXAMPLE_ROW[key])
+        cell = ws.cell(row=2, column=idx, value=example_row[key])
         cell.font = example_font
     for row in range(2, MAX_ROWS + 2):
         for idx, (key, *_rest) in enumerate(COLUMNS, start=1):
@@ -128,6 +146,8 @@ def build_template(path):
 
     add_list_validation("phone_type", PHONE_TYPES)
     add_list_validation("gender", GENDERS)
+    if coach_names:
+        add_list_validation("coach", coach_names)
     add_whole_validation("quantity", 1, 999, "購買堂數需為 1–999 的整數")
     add_whole_validation("used", 0, 999, "已使用堂數需為 0–999 的整數")
 
@@ -139,10 +159,14 @@ def build_template(path):
         ("", False),
         ("1. 在「學生匯入」工作表，一列填一位學生；第 2 列是範例，匯入前請刪除。", False),
         ("2. 紅色表頭（*）為必填，藍色為選填，灰色「剩餘堂數」自動計算僅供核對。", False),
-        ("3. 日期請用 YYYY-MM-DD；電話類型與性別請用下拉選單。", False),
-        ("4. 已使用堂數記為購課紀錄的「期初已扣」堂數，不建立上課紀錄；匯入後已上堂數為 0，總購買與剩餘堂數＝購買堂數－已使用堂數。", False),
-        ("5. 學生姓名不可與系統內既有學生、或本檔其他列重複。", False),
-        ("6. 匯入指令（先檢查、再正式寫入）：", False),
+        ("3. 日期請用 YYYY-MM-DD；電話類型、性別與目前教練請用下拉選單。", False),
+        ("4. 已使用堂數記為購課紀錄的「期初已扣」堂數；匯入後已上堂數為 0，總購買與剩餘堂數＝購買堂數－已使用堂數。", False),
+        ("5. 已使用堂數大於 0 的學生，最後上課日期與目前教練為必填：系統會建立一筆備註「初始匯入」的上課紀錄(只有上課日期與教練、沒有訓練項目、不計入已上堂數)，該學生只有這位教練與管理者看得到。", False),
+        ("6. 已使用堂數為 0 的學生不建立上課紀錄(最後上課日期與目前教練會被忽略)，在有教練幫他新增上課紀錄之前，所有教練都看得到。", False),
+        ("7. 目前教練請填系統內啟用中教練的姓名；教練帳號需先建立，範本下拉選單為產生範本當下的教練名單。", False),
+        ("8. 學生姓名不可與系統內既有學生、或本檔其他列重複。", False),
+        ("9. 有填手機的學生會一併建立登入帳號：帳號與初始密碼皆為手機號碼，首次登入須自行修改密碼；沒填手機(或填市話)的學生不建立帳號。手機不可與系統內既有帳號、或本檔其他列重複。", False),
+        ("10. 匯入指令（先檢查、再正式寫入）：", False),
         ("   flask import-students 檔案.xlsx            → 只檢查，不寫入", False),
         ("   flask import-students 檔案.xlsx --commit   → 全部通過才寫入；任一列有誤則整批不寫入", False),
         ("", False),
@@ -199,7 +223,29 @@ def _to_int(value, label, low, high):
     return number
 
 
-def _parse_row(raw):
+def _parse_opening_class(raw, used, purchase_date, coaches):
+    """回傳 (最後上課日期, 教練 id, 教練姓名)；已使用堂數為 0 時不建立初始上課紀錄，全部回傳 None。"""
+    if used == 0:
+        return None, None, None
+    last_class_date = _to_date(raw.get("last_class_date"), "最後上課日期")
+    if last_class_date is None:
+        raise services.ValidationError("已使用堂數大於 0 時，最後上課日期為必填")
+    if last_class_date < purchase_date:
+        raise services.ValidationError("最後上課日期不能早於購買日期")
+    if last_class_date > date.today():
+        raise services.ValidationError("最後上課日期不能晚於今天")
+    coach_name = _text(raw.get("coach"))
+    if not coach_name:
+        raise services.ValidationError("已使用堂數大於 0 時，目前教練為必填")
+    coach_ids = coaches.get(coach_name, [])
+    if not coach_ids:
+        raise services.ValidationError(f"系統內找不到啟用中的教練「{coach_name}」")
+    if len(coach_ids) > 1:
+        raise services.ValidationError(f"系統內有多位教練同名「{coach_name}」，無法判斷是哪一位")
+    return last_class_date, coach_ids[0], coach_name
+
+
+def _parse_row(raw, coaches):
     name = _text(raw.get("name"))
     if not name:
         raise services.ValidationError("學生姓名為必填")
@@ -227,6 +273,7 @@ def _parse_row(raw):
     used = _to_int(raw.get("used"), "已使用堂數", 0, 999)
     if used > quantity:
         raise services.ValidationError("已使用堂數不能大於購買堂數")
+    last_class_date, coach_id, coach_name = _parse_opening_class(raw, used, purchase_date, coaches)
 
     return {
         "name": name,
@@ -239,7 +286,11 @@ def _parse_row(raw):
         "quantity": quantity,
         "price": services._validate_purchase_price(raw.get("price")),
         "used": used,
+        "last_class_date": last_class_date,
+        "coach_id": coach_id,
+        "coach_name": coach_name,
         "notes": _text(raw.get("notes")),
+        "username": phone if phone_type == "mobile" else None,
     }
 
 
@@ -262,13 +313,16 @@ def read_rows(path):
 
     rows, errors = [], []
     existing = {name for (name,) in db.session.query(Student.name).all()}
+    existing_usernames = {username.lower() for (username,) in db.session.query(User.username).all()}
+    coaches = _active_coaches_by_name()
     seen = {}
+    seen_usernames = {}
     for row_no, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         raw = {key: values[idx] if idx < len(values) else None for key, idx in positions.items()}
         if all(_text(v) is None for v in raw.values()):
             continue
         try:
-            data = _parse_row(raw)
+            data = _parse_row(raw, coaches)
         except services.ValidationError as exc:
             errors.append((row_no, exc.message))
             continue
@@ -278,6 +332,15 @@ def read_rows(path):
         if data["name"] in seen:
             errors.append((row_no, f"與第 {seen[data['name']]} 列學生姓名重複"))
             continue
+        username = data["username"]
+        if username and username in existing_usernames:
+            errors.append((row_no, f"系統內已有帳號「{username}」，無法以此手機建立帳號"))
+            continue
+        if username and username in seen_usernames:
+            errors.append((row_no, f"與第 {seen_usernames[username]} 列手機號碼重複，無法建立帳號"))
+            continue
+        if username:
+            seen_usernames[username] = row_no
         seen[data["name"]] = row_no
         rows.append((row_no, data))
     return rows, errors
@@ -307,7 +370,33 @@ def import_rows(rows):
                     notes="期初匯入",
                 )
             )
+            if data["coach_id"]:
+                student.class_records.append(
+                    ClassRecord(
+                        class_date=data["last_class_date"],
+                        class_time=time(0, 0),
+                        coach_id=data["coach_id"],
+                        is_opening=True,
+                        notes=OPENING_NOTE,
+                    )
+                )
             db.session.add(student)
+            if data["username"]:
+                user = User(
+                    username=data["username"],
+                    role="student",
+                    status="active",
+                    name=data["name"],
+                    email=data["email"],
+                    phone=data["phone"],
+                    phone_type=data["phone_type"],
+                    birthday=data["birthday"],
+                    gender=data["gender"],
+                    must_change_password=True,
+                    student=student,
+                )
+                user.set_password(data["username"])
+                db.session.add(user)
         db.session.commit()
     except Exception:
         db.session.rollback()

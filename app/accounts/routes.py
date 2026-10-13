@@ -14,6 +14,8 @@ def _get_user_or_404(user_id):
     user = db.session.get(User, user_id)
     if not user:
         abort(404)
+    if not services.can_access_account(current_user, user):
+        abort(403)
     return user
 
 
@@ -26,7 +28,7 @@ def list_accounts():
 
     search = request.args.get("search", "").strip()
     role = request.args.get("role", "").strip()
-    accounts = services.list_accounts(search=search, role=role)
+    accounts = services.list_accounts(search=search, role=role, user=current_user)
     return render_template(
         "accounts/list.html",
         accounts=accounts,
@@ -125,7 +127,7 @@ def change_password(user_id):
 
 
 @bp.route("/new-coach", methods=["GET", "POST"])
-@roles_required("admin", "coach")
+@roles_required("admin")
 def new_coach():
     form = CoachForm()
     if form.validate_on_submit():

@@ -10,12 +10,16 @@
     <div class="row-between">
       <div>
         <h2 style="margin:0 0 4px;">{{ student.name }}
+          {% if student.is_pair %}<span class="badge badge-warning">一對二</span>{% endif %}
           {% if student.status == 'active' %}
             <span class="badge badge-success">在籍</span>
           {% else %}
             <span class="badge badge-muted">停用</span>
           {% endif %}
         </h2>
+        {% if student.is_pair %}
+          <p class="muted" style="margin:0;">兩位學員共用下方的堂數、購買紀錄與上課紀錄。</p>
+        {% else %}
         {% if student.account %}
           <p class="muted" style="margin:0;">帳號：{{ student.account.username }}</p>
         {% endif %}
@@ -25,9 +29,23 @@
         {% if student.phone %}
           <p class="muted" style="margin:2px 0 0;">{{ '市話' if student.phone_type == 'landline' else '手機' }}：{{ student.phone }}</p>
         {% endif %}
+        {% endif %}
       </div>
       <div class="btn-group">
+        {% if not student.is_pair %}
         <a class="btn btn-sm" href="{{ url_for('students.edit_student', student_id=student.id) }}">編輯資料</a>
+        {% endif %}
+        {% if current_user.role != 'student' %}
+          {% if student.is_pair %}
+          <form method="post" action="{{ url_for('students.split_student', student_id=student.id) }}"
+                data-confirm="確定要拆分為一對一嗎？兩位學員會各有一張新的學生卡片，這張一對二卡片會停用保留。">
+            {{ delete_form.hidden_tag() }}
+            <button type="submit" class="btn btn-sm">拆分為一對一</button>
+          </form>
+          {% elif student.status == 'active' and student.account %}
+          <a class="btn btn-sm" href="{{ url_for('students.pair_student', student_id=student.id) }}">轉為一對二</a>
+          {% endif %}
+        {% endif %}
         {% if current_user.role == 'admin' or (current_user.role == 'coach' and student.status != 'active') %}
         <form method="post" action="{{ url_for('students.change_status', student_id=student.id) }}"
               data-confirm="確定要{{ '停用' if student.status == 'active' else '重新啟用' }}這位學生嗎？">
@@ -38,7 +56,25 @@
       </div>
     </div>
 
-    {% if student.notes %}<p class="muted" style="margin-top:10px;">期望運動達成的效益：{{ student.notes }}</p>{% endif %}
+    {% if student.is_pair %}
+      <div class="record-list" style="margin-top:10px;">
+        {% for m in student.accounts %}
+          <div class="row-between" style="padding:8px 0; border-top:1px solid var(--color-border);">
+            <div>
+              <strong>{{ m.name or m.username }}</strong>
+              {% if m.status == 'disabled' %}<span class="badge badge-muted">帳號停用</span>{% endif %}
+              <p class="muted" style="margin:2px 0 0;">帳號：{{ m.username }}</p>
+              {% if m.email %}<p class="muted" style="margin:2px 0 0;">信箱：{{ m.email }}</p>{% endif %}
+              {% if m.phone %}<p class="muted" style="margin:2px 0 0;">{{ '市話' if m.phone_type == 'landline' else '手機' }}：{{ m.phone }}</p>{% endif %}
+              {% if m.goal %}<p class="muted" style="margin:2px 0 0;">期望運動達成的效益：{{ m.goal }}</p>{% endif %}
+            </div>
+            {% if current_user.role != 'student' or current_user.id == m.id %}
+            <a class="btn btn-sm" href="{{ url_for('students.edit_student', student_id=student.id, member=m.id) }}">編輯資料</a>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% elif student.notes %}<p class="muted" style="margin-top:10px;">期望運動達成的效益：{{ student.notes }}</p>{% endif %}
 
     <div class="stats" style="margin-top:14px;">
       <div>
@@ -117,9 +153,10 @@
             <summary class="class-row-summary">
               <span class="exercise-toggle-arrow">&#9656;</span>
               <span>{{ c.class_date.strftime('%Y-%m-%d') }}</span>
+              {% if c.is_opening %}<span class="badge badge-muted">初始匯入</span>{% endif %}
             </summary>
             <div class="class-row-body">
-              <div><span class="class-field-label">上課時間</span>{{ c.class_time.strftime('%H:%M') }}</div>
+              <div><span class="class-field-label">上課時間</span>{% if c.is_opening %}-{% else %}{{ c.class_time.strftime('%H:%M') }}{% endif %}</div>
               <div><span class="class-field-label">上課教練</span>{{ c.coach.name if c.coach else '-' }}</div>
               <div>
                 <span class="class-field-label">上課內容</span>

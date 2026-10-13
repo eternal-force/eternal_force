@@ -1,6 +1,7 @@
 from itertools import zip_longest
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask_login import current_user
 
 from .. import services
 from ..auth.decorators import roles_required
@@ -47,6 +48,15 @@ def _exercise_rows_from_record(record):
     ] or [dict(_EMPTY_EXERCISE_ROW)]
 
 
+def _back_to_student(student_id):
+    """教練把上課教練改成別人或刪掉自己的紀錄後，可能已看不到這位學生(REQ-051)，改回學生列表。"""
+    student = services.get_student_or_404(student_id)
+    if services.can_access_student(current_user, student):
+        return redirect(url_for("students.student_detail", student_id=student_id))
+    flash(f"學生「{student.name}」已由其他教練負責，您已無法檢視。", "warning")
+    return redirect(url_for("students.list_students"))
+
+
 def _coach_choices():
     return [("", "請選擇教練")] + [
         (str(coach.id), coach.name) for coach in services.list_active_coaches()
@@ -56,9 +66,11 @@ def _coach_choices():
 @bp.route("/students/<int:student_id>/classes/new", methods=["GET", "POST"])
 @roles_required("admin", "coach")
 def new_class_record(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     form = ClassRecordForm()
     form.coach_id.choices = _coach_choices()
+    if request.method == "GET" and current_user.role == "coach":
+        form.coach_id.data = str(current_user.id)
     if request.method == "GET" and student.remaining <= 0:
         flash("已無上課堂數，請確認。", "warning")
     exercise_rows = (
@@ -77,7 +89,7 @@ def new_class_record(student_id):
                 },
             )
             flash("上課紀錄已新增，堂數統計已更新。", "success")
-            return redirect(url_for("students.student_detail", student_id=student.id))
+            return _back_to_student(student.id)
         except services.ValidationError as exc:
             flash(exc.message, "danger")
     return render_template(
@@ -94,7 +106,7 @@ def new_class_record(student_id):
 @bp.route("/classes/<int:record_id>/edit", methods=["GET", "POST"])
 @roles_required("admin", "coach")
 def edit_class_record(record_id):
-    record = services.get_class_record_or_404(record_id)
+    record = services.get_class_record_or_404(record_id, current_user)
     student = record.student
     form = ClassRecordForm(obj=record)
     form.coach_id.choices = _coach_choices()
@@ -114,7 +126,7 @@ def edit_class_record(record_id):
                 },
             )
             flash("上課紀錄已更新（已上堂數不受影響）。", "success")
-            return redirect(url_for("students.student_detail", student_id=student.id))
+            return _back_to_student(student.id)
         except services.ValidationError as exc:
             flash(exc.message, "danger")
     return render_template(
@@ -132,10 +144,10 @@ def edit_class_record(record_id):
 @bp.route("/classes/<int:record_id>/delete", methods=["POST"])
 @roles_required("admin", "coach")
 def delete_class_record(record_id):
-    record = services.get_class_record_or_404(record_id)
+    record = services.get_class_record_or_404(record_id, current_user)
     student_id = record.student_id
     form = DeleteConfirmForm()
     if form.validate_on_submit():
         services.delete_class_record(record)
         flash("上課紀錄已刪除，堂數統計已重新計算。", "success")
-    return redirect(url_for("students.student_detail", student_id=student_id))
+    return _back_to_student(student_id)

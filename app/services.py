@@ -96,21 +96,76 @@ def _validate_purchase_price(value):
     return price
 
 
+# ---------- 教練可見範圍(REQ-051) ----------
+
+def _coach_student_filter(coach):
+    """教練可見的學生：自己上過課的，或尚未有任何教練上過課(未分配)的學生。"""
+    return db.or_(
+        Student.class_records.any(ClassRecord.coach_id == coach.id),
+        ~Student.class_records.any(ClassRecord.coach_id.isnot(None)),
+    )
+
+
+def visible_students_query(user):
+    query = Student.query
+    if user.role == "coach":
+        query = query.filter(_coach_student_filter(user))
+    return query
+
+
+def can_access_student(user, student):
+    if user.role == "admin":
+        return True
+    if user.role == "student":
+        return user.student_id == student.id
+    coach_ids = {c.coach_id for c in student.class_records if c.coach_id is not None}
+    return not coach_ids or user.id in coach_ids
+
+
+def ensure_student_access(user, student):
+    if not can_access_student(user, student):
+        abort(403)
+
+
+def visible_accounts_query(user):
+    """教練只看得到學生帳號：尚未連結學生名冊的(例如待驗證)，或連結到自己可見學生的。"""
+    query = User.query
+    if user.role == "coach":
+        query = query.filter(
+            User.role == "student",
+            db.or_(User.student_id.is_(None), User.student.has(_coach_student_filter(user))),
+        )
+    return query
+
+
+def can_access_account(user, account):
+    if user.role == "admin":
+        return True
+    if account.role != "student":
+        return False
+    return account.student is None or can_access_student(user, account.student)
+
+
 # ---------- Student ----------
 
-def list_students(search=None, status=None):
-    query = Student.query
+def list_students(search=None, status=None, user=None, class_type=None):
+    query = visible_students_query(user) if user is not None else Student.query
     if search:
         query = query.filter(Student.name.ilike(f"%{search.strip()}%"))
     if status in ("active", "inactive"):
         query = query.filter(Student.status == status)
+    if class_type in ("one_on_one", "one_on_two"):
+        query = query.filter(Student.class_type == class_type)
     return query.order_by(Student.created_at.desc()).all()
 
 
-def get_student_or_404(student_id):
+def get_student_or_404(student_id, user=None):
+    """有帶 user 時一併檢查該使用者能否存取這位學生，不能則 403。"""
     student = db.session.get(Student, student_id)
     if not student:
         abort(404)
+    if user is not None:
+        ensure_student_access(user, student)
     return student
 
 
@@ -141,27 +196,29 @@ def create_student(data):
 
 
 def update_student(student, data):
+    # 一對二卡片的姓名／電話／信箱屬於各自的帳號(update_pair_member)，不由卡片回寫。
+    account = None if student.is_pair else student.account
     if "name" in data:
         name = (data["name"] or "").strip()
         if not name:
             raise ValidationError("姓名為必填", field="name")
         validate_student_name(name)
         student.name = name
-        if student.account is not None:
-            student.account.name = name
+        if account is not None:
+            account.name = name
     if "phone" in data or "phone_type" in data:
         phone = _blank_to_none(data["phone"]) if "phone" in data else student.phone
         phone_type = (data["phone_type"] if "phone_type" in data else student.phone_type) or None
         validate_phone_by_type(phone, phone_type)
         student.phone = phone
         student.phone_type = phone_type
-        if student.account is not None:
-            student.account.phone = phone
-            student.account.phone_type = phone_type
+        if account is not None:
+            account.phone = phone
+            account.phone_type = phone_type
     if "email" in data:
         student.email = _blank_to_none(data["email"])
-        if student.account is not None:
-            student.account.email = student.email
+        if account is not None:
+            account.email = student.email
     if "notes" in data:
         student.notes = _blank_to_none(data["notes"])
     # 入班/建檔日期不可編輯：一律沿用建立當下寫入的值，即使呼叫端帶了 enrollment_date 也忽略。
@@ -180,16 +237,16 @@ def update_student(student, data):
 
 def _activate_linked_account(student):
     """學生重新啟用時，若有對應的登入帳號且尚未啟用，一併改為啟用(呼應帳號停用時會同步停用學生名冊的既有規則)。"""
-    linked_user = User.query.filter_by(student_id=student.id).first()
-    if linked_user is not None and linked_user.role != "admin" and linked_user.status != "active":
-        linked_user.status = "active"
+    for linked_user in student.accounts:
+        if linked_user.role != "admin" and linked_user.status != "active":
+            linked_user.status = "active"
 
 
 def _deactivate_linked_account(student):
     """學生停用時，若有對應的登入帳號且尚未停用，一併改為停用，方向對稱於帳號管理停用帳號時連動停用學生名冊。"""
-    linked_user = User.query.filter_by(student_id=student.id).first()
-    if linked_user is not None and linked_user.role != "admin" and linked_user.status != "disabled":
-        linked_user.status = "disabled"
+    for linked_user in student.accounts:
+        if linked_user.role != "admin" and linked_user.status != "disabled":
+            linked_user.status = "disabled"
 
 
 def set_student_status(student, status):
@@ -207,11 +264,138 @@ def set_student_status(student, status):
 def delete_student_hard(student):
     """硬刪除(含所有購買/上課紀錄)。UI 預設走軟刪除(set_student_status)，
     此函式僅供 API DELETE /api/students/{id} 在明確需要徹底移除時使用。"""
-    linked_user = User.query.filter_by(student_id=student.id).first()
-    if linked_user:
-        linked_user.student_id = None
+    for linked_user in list(student.accounts):
+        linked_user.student = None
     db.session.delete(student)
     db.session.commit()
+
+
+# ---------- 一對二(REQ-053) ----------
+
+CLASS_TYPE_LABELS = {"one_on_one": "一對一", "one_on_two": "一對二"}
+PAIR_NAME_SEPARATOR = "、"
+
+
+def _ensure_classes_used_up(student):
+    """轉換課程類型前，原卡片的堂數必須剛好用完。"""
+    remaining = student.remaining
+    if remaining > 0:
+        raise ValidationError(f"「{student.name}」尚有 {remaining} 堂未上完，需全部用完才能轉換", field="student")
+    if remaining < 0:
+        raise ValidationError(f"「{student.name}」已超上 {-remaining} 堂，請先補購後再轉換", field="student")
+
+
+def _retire_card(student):
+    """轉換後的舊卡片：有紀錄的停用保留當歷史，完全沒有紀錄的直接刪除。呼叫前帳號須已改連到新卡片。"""
+    if student.purchase_records or student.class_records:
+        student.status = "inactive"
+    else:
+        db.session.delete(student)
+
+
+def _sync_pair_name(student):
+    """一對二卡片的名稱由兩位學員的姓名組成，學生列表才能用任一人的姓名搜尋。"""
+    if student.is_pair and student.accounts:
+        student.name = PAIR_NAME_SEPARATOR.join(a.name or a.username for a in student.accounts)
+
+
+def _check_pair_partner(student, partner):
+    if partner is None or partner.role != "student":
+        raise ValidationError("請選擇要一起上課的學生帳號", field="partner_id")
+    if partner.status != "active":
+        raise ValidationError("只能選擇啟用中的學生帳號", field="partner_id")
+    if partner.student is None:
+        raise ValidationError("該帳號尚未建立學生名冊，無法配對", field="partner_id")
+    if partner.student_id == student.id:
+        raise ValidationError("不能和自己配對", field="partner_id")
+    if partner.student.is_pair:
+        raise ValidationError("該學生已經是一對二，請先拆分後再配對", field="partner_id")
+
+
+def list_pair_candidates(user, student):
+    """可與這位學生配對的帳號：登入者看得到、啟用中、目前是一對一且堂數已用完的學生帳號。"""
+    accounts = (
+        visible_accounts_query(user)
+        .filter(User.role == "student", User.status == "active", User.student_id.isnot(None))
+        .filter(User.student_id != student.id)
+        .filter(User.student.has(Student.class_type == "one_on_one"))
+        .order_by(User.name)
+        .all()
+    )
+    return [a for a in accounts if a.student.remaining == 0]
+
+
+def pair_students(student, partner):
+    """把一對一學生與另一位學生帳號配成一對二：建立新的共用卡片，兩張舊卡片停用保留(沒有紀錄的刪除)。"""
+    if student.is_pair:
+        raise ValidationError("這位學生已經是一對二", field="student")
+    if student.status != "active":
+        raise ValidationError("已停用的學生無法轉為一對二，請先重新啟用", field="student")
+    owner = student.account
+    if owner is None:
+        raise ValidationError("這位學生沒有登入帳號，無法轉為一對二", field="student")
+    _check_pair_partner(student, partner)
+    old_cards = [student, partner.student]
+    for card in old_cards:
+        _ensure_classes_used_up(card)
+
+    pair = Student(name="", class_type="one_on_two", status="active", enrollment_date=date.today())
+    pair.accounts = [owner, partner]
+    _sync_pair_name(pair)
+    db.session.add(pair)
+    for card in old_cards:
+        _retire_card(card)
+    db.session.commit()
+    return pair
+
+
+def split_pair(student):
+    """把一對二拆回一對一：每位學員各建一張新的一對一卡片，原一對二卡片停用保留(沒有紀錄的刪除)。"""
+    if not student.is_pair:
+        raise ValidationError("這位學生不是一對二", field="student")
+    _ensure_classes_used_up(student)
+    new_cards = []
+    for member in list(student.accounts):
+        card = create_student_from_registration(member)
+        if member.status != "active":
+            card.status = "inactive"
+        new_cards.append(card)
+    _retire_card(student)
+    db.session.commit()
+    return new_cards
+
+
+def get_pair_member_or_404(student, user_id):
+    for member in student.accounts:
+        if member.id == user_id:
+            return member
+    abort(404)
+
+
+def update_pair_member(student, member, data):
+    """一對二卡片的個人資料存在各自的帳號上，編輯其中一位不影響另一位。"""
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            raise ValidationError("姓名為必填", field="name")
+        validate_student_name(name)
+        member.name = name
+    if "phone" in data or "phone_type" in data:
+        phone = _blank_to_none(data["phone"]) if "phone" in data else member.phone
+        phone_type = (data["phone_type"] if "phone_type" in data else member.phone_type) or None
+        validate_phone_by_type(phone, phone_type)
+        member.phone = phone
+        member.phone_type = phone_type
+    if "email" in data:
+        member.email = _blank_to_none(data["email"])
+    if "notes" in data:
+        member.goal = _blank_to_none(data["notes"])
+    for key in ("birthday", "gender"):
+        if key in data:
+            setattr(member, key, data[key] or None)
+    _sync_pair_name(student)
+    db.session.commit()
+    return member
 
 
 def summary_dict(student):
@@ -224,10 +408,12 @@ def summary_dict(student):
 
 # ---------- Purchase records ----------
 
-def get_purchase_or_404(purchase_id):
+def get_purchase_or_404(purchase_id, user=None):
     record = db.session.get(PurchaseRecord, purchase_id)
     if not record:
         abort(404)
+    if user is not None:
+        ensure_student_access(user, record.student)
     return record
 
 
@@ -276,10 +462,12 @@ def delete_purchase(record):
 
 # ---------- Class records ----------
 
-def get_class_record_or_404(record_id):
+def get_class_record_or_404(record_id, user=None):
     record = db.session.get(ClassRecord, record_id)
     if not record:
         abort(404)
+    if user is not None:
+        ensure_student_access(user, record.student)
     return record
 
 
@@ -538,8 +726,8 @@ def seed_exercise_catalog(seed_items):
 
 # ---------- User accounts ----------
 
-def list_accounts(search=None, role=None):
-    query = User.query
+def list_accounts(search=None, role=None, user=None):
+    query = visible_accounts_query(user) if user is not None else User.query
     if search:
         like = f"%{search.strip()}%"
         query = query.filter(db.or_(User.username.ilike(like), User.name.ilike(like)))
@@ -630,8 +818,8 @@ def create_student_from_registration(user):
         notes=user.goal or None,
     )
     db.session.add(student)
+    user.student = student
     db.session.flush()
-    user.student_id = student.id
     return student
 
 
@@ -649,8 +837,10 @@ def set_account_status(user, target_status):
     if user.role == "admin":
         raise ValidationError("管理者帳號無法在此變更狀態", field="status")
     user.status = target_status
+    # 一對二卡片要兩個帳號都停用才跟著停用，另一位還在上課時卡片維持在籍(REQ-053)。
     if target_status == "disabled" and user.student is not None:
-        user.student.status = "inactive"
+        if all(a.status == "disabled" for a in user.student.accounts):
+            user.student.status = "inactive"
     if target_status == "active":
         if user.role == "student" and user.student_id is None:
             create_student_from_registration(user)
@@ -667,9 +857,13 @@ def delete_account(user):
     if user.status != "disabled":
         raise ValidationError("僅能刪除已停用的帳號", field="status")
     student = user.student
-    if student is not None and student.remaining > 0:
-        raise ValidationError("該學生尚有課程未完成，請勿刪除", field="student")
-    if student is not None:
+    if student is not None and len(student.accounts) > 1:
+        # 一對二還有另一位學員：只移除這個帳號，共用卡片與紀錄留給另一位(REQ-053)。
+        user.student = None
+        _sync_pair_name(student)
+    elif student is not None:
+        if student.remaining > 0:
+            raise ValidationError("該學生尚有課程未完成，請勿刪除", field="student")
         db.session.delete(student)
     db.session.delete(user)
     db.session.commit()

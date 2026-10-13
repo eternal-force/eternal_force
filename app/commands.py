@@ -32,7 +32,7 @@ def register(app):
     @click.argument("path", type=click.Path(exists=True, dir_okay=False))
     @click.option("--commit", is_flag=True, help="全部檢查通過後正式寫入資料庫(未加則只檢查)")
     def import_students(path, commit):
-        """從 Excel 期初匯入學生、購買堂數與已使用堂數。"""
+        """從 Excel 期初匯入學生、購買堂數、已使用堂數與目前教練，有填手機者一併建立登入帳號。"""
         rows, errors = importer.read_rows(path)
         for row_no, message in errors:
             click.echo(f"第 {row_no} 列：{message}", err=True)
@@ -44,6 +44,19 @@ def register(app):
         total_qty = sum(d["quantity"] for _n, d in rows)
         total_used = sum(d["used"] for _n, d in rows)
         click.echo(f"檢查通過：{len(rows)} 位學生，購買 {total_qty} 堂、期初扣抵 {total_used} 堂、剩餘 {total_qty - total_used} 堂")
+        no_account = [d["name"] for _n, d in rows if not d["username"]]
+        click.echo(f"將建立 {len(rows) - len(no_account)} 個學生帳號(帳號與初始密碼皆為手機號碼，首次登入須修改密碼)")
+        if no_account:
+            click.echo("未填手機、不建立帳號：" + "、".join(no_account))
+        per_coach = {}
+        for _n, d in rows:
+            if d["coach_name"]:
+                per_coach[d["coach_name"]] = per_coach.get(d["coach_name"], 0) + 1
+        for coach_name, count in sorted(per_coach.items()):
+            click.echo(f"教練「{coach_name}」：{count} 位學生(建立初始匯入上課紀錄)")
+        unassigned = [d["name"] for _n, d in rows if not d["coach_name"]]
+        if unassigned:
+            click.echo("已使用堂數為 0、未分配教練(所有教練可見)：" + "、".join(unassigned))
         if not commit:
             click.echo("目前只做檢查；確認無誤後加上 --commit 正式寫入")
             return

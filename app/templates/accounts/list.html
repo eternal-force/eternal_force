@@ -4,7 +4,9 @@
 <div class="stack">
   <div class="row-between">
     <h2 style="margin:0;">帳號管理</h2>
+    {% if current_user.role == 'admin' %}
     <a href="{{ url_for('accounts.new_coach') }}" class="btn btn-primary">+ 新增教練帳號</a>
+    {% endif %}
   </div>
 
   <details class="card">
@@ -16,6 +18,7 @@
         <label for="search">依帳號或姓名搜尋</label>
         <input type="search" id="search" name="search" value="{{ search }}" placeholder="輸入帳號或姓名">
       </div>
+      {% if current_user.role == 'admin' %}
       <div>
         <label for="role">角色</label>
         <select id="role" name="role">
@@ -25,6 +28,7 @@
           <option value="student" {% if role == 'student' %}selected{% endif %}>學生</option>
         </select>
       </div>
+      {% endif %}
       <button type="submit" class="btn btn-primary">搜尋</button>
     </form>
   </details>

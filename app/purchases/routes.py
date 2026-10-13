@@ -1,4 +1,5 @@
 from flask import Blueprint, flash, redirect, render_template, url_for
+from flask_login import current_user
 
 from .. import services
 from ..auth.decorators import roles_required
@@ -11,7 +12,7 @@ bp = Blueprint("purchases", __name__)
 @bp.route("/students/<int:student_id>/purchases/new", methods=["GET", "POST"])
 @roles_required("admin", "coach")
 def new_purchase(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     form = PurchaseForm()
     if form.validate_on_submit():
         services.create_purchase(
@@ -31,7 +32,7 @@ def new_purchase(student_id):
 @bp.route("/purchases/<int:purchase_id>/edit", methods=["GET", "POST"])
 @roles_required("admin", "coach")
 def edit_purchase(purchase_id):
-    record = services.get_purchase_or_404(purchase_id)
+    record = services.get_purchase_or_404(purchase_id, current_user)
     student = record.student
     form = PurchaseForm(obj=record)
     if form.validate_on_submit():
@@ -57,7 +58,7 @@ def edit_purchase(purchase_id):
 @bp.route("/purchases/<int:purchase_id>/delete", methods=["POST"])
 @roles_required("admin", "coach")
 def delete_purchase(purchase_id):
-    record = services.get_purchase_or_404(purchase_id)
+    record = services.get_purchase_or_404(purchase_id, current_user)
     student_id = record.student_id
     form = DeleteConfirmForm()
     if form.validate_on_submit():

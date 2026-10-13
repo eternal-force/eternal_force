@@ -8,6 +8,7 @@
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
+from flask_login import current_user
 
 from .. import services
 from ..auth.decorators import roles_required
@@ -44,7 +45,8 @@ def _json_body():
 def api_list_students():
     search = request.args.get("search")
     status = request.args.get("status")
-    students = services.list_students(search=search, status=status)
+    class_type = request.args.get("class_type")
+    students = services.list_students(search=search, status=status, user=current_user, class_type=class_type)
     return jsonify([s.to_dict() for s in students])
 
 
@@ -64,14 +66,14 @@ def api_create_student():
 @bp.route("/students/<int:student_id>", methods=["GET"])
 @roles_required("admin", "coach")
 def api_get_student(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     return jsonify(student.to_dict())
 
 
 @bp.route("/students/<int:student_id>", methods=["PUT", "PATCH"])
 @roles_required("admin", "coach")
 def api_update_student(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     data = _json_body()
     try:
         payload = dict(data)
@@ -87,7 +89,7 @@ def api_update_student(student_id):
 @roles_required("admin", "coach")
 def api_delete_student(student_id):
     """依規格書決策採軟刪除：狀態改為 inactive，保留歷史購買/上課紀錄。"""
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     services.set_student_status(student, "inactive")
     return jsonify(student.to_dict())
 
@@ -95,7 +97,7 @@ def api_delete_student(student_id):
 @bp.route("/students/<int:student_id>/summary", methods=["GET"])
 @roles_required("admin", "coach")
 def api_student_summary(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     return jsonify(services.summary_dict(student))
 
 
@@ -104,14 +106,14 @@ def api_student_summary(student_id):
 @bp.route("/students/<int:student_id>/purchases", methods=["GET"])
 @roles_required("admin", "coach")
 def api_list_purchases(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     return jsonify([p.to_dict() for p in student.purchase_records])
 
 
 @bp.route("/students/<int:student_id>/purchases", methods=["POST"])
 @roles_required("admin", "coach")
 def api_create_purchase(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     data = _json_body()
     try:
         payload = dict(data)
@@ -125,7 +127,7 @@ def api_create_purchase(student_id):
 @bp.route("/purchases/<int:purchase_id>", methods=["PUT", "PATCH"])
 @roles_required("admin", "coach")
 def api_update_purchase(purchase_id):
-    record = services.get_purchase_or_404(purchase_id)
+    record = services.get_purchase_or_404(purchase_id, current_user)
     data = _json_body()
     try:
         payload = dict(data)
@@ -140,7 +142,7 @@ def api_update_purchase(purchase_id):
 @bp.route("/purchases/<int:purchase_id>", methods=["DELETE"])
 @roles_required("admin", "coach")
 def api_delete_purchase(purchase_id):
-    record = services.get_purchase_or_404(purchase_id)
+    record = services.get_purchase_or_404(purchase_id, current_user)
     services.delete_purchase(record)
     return "", 204
 
@@ -150,14 +152,14 @@ def api_delete_purchase(purchase_id):
 @bp.route("/students/<int:student_id>/classes", methods=["GET"])
 @roles_required("admin", "coach")
 def api_list_classes(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     return jsonify([c.to_dict() for c in student.class_records])
 
 
 @bp.route("/students/<int:student_id>/classes", methods=["POST"])
 @roles_required("admin", "coach")
 def api_create_class(student_id):
-    student = services.get_student_or_404(student_id)
+    student = services.get_student_or_404(student_id, current_user)
     data = _json_body()
     try:
         payload = dict(data)
@@ -172,7 +174,7 @@ def api_create_class(student_id):
 @bp.route("/classes/<int:class_id>", methods=["PUT", "PATCH"])
 @roles_required("admin", "coach")
 def api_update_class(class_id):
-    record = services.get_class_record_or_404(class_id)
+    record = services.get_class_record_or_404(class_id, current_user)
     data = _json_body()
     try:
         payload = dict(data)
@@ -189,7 +191,7 @@ def api_update_class(class_id):
 @bp.route("/classes/<int:class_id>", methods=["DELETE"])
 @roles_required("admin", "coach")
 def api_delete_class(class_id):
-    record = services.get_class_record_or_404(class_id)
+    record = services.get_class_record_or_404(class_id, current_user)
     services.delete_class_record(record)
     return "", 204
 

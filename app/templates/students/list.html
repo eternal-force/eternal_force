@@ -19,13 +19,21 @@
           <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>停用</option>
         </select>
       </div>
+      <div>
+        <label for="class_type">課程類型</label>
+        <select id="class_type" name="class_type">
+          <option value="" {% if not class_type %}selected{% endif %}>全部</option>
+          <option value="one_on_one" {% if class_type == 'one_on_one' %}selected{% endif %}>一對一</option>
+          <option value="one_on_two" {% if class_type == 'one_on_two' %}selected{% endif %}>一對二</option>
+        </select>
+      </div>
       <button type="submit" class="btn btn-primary">搜尋 / 篩選</button>
     </form>
   </details>
 
   {% if students|length == 0 %}
     <div class="empty-state">
-      <p>{% if search or status %}沒有符合條件的學生。{% else %}目前還沒有學生資料。{% endif %}</p>
+      <p>{% if search or status or class_type %}沒有符合條件的學生。{% else %}目前還沒有學生資料。{% endif %}</p>
     </div>
   {% else %}
     <div class="student-grid">
@@ -34,15 +42,18 @@
           <div class="row-between" style="margin-bottom:6px; gap:8px;">
             <div>
               <h3 style="margin:0;">{{ s.name }}</h3>
-              {% if s.account %}
-                <div class="muted" style="font-size:0.75rem; margin-top:2px;">{{ s.account.username }}</div>
+              {% if s.accounts %}
+                <div class="muted" style="font-size:0.75rem; margin-top:2px;">{{ s.accounts|map(attribute='username')|join('、') }}</div>
               {% endif %}
             </div>
-            {% if s.status == 'active' %}
-              <span class="badge badge-success">在籍</span>
-            {% else %}
-              <span class="badge badge-muted">停用</span>
-            {% endif %}
+            <div class="btn-group" style="flex-wrap:nowrap;">
+              {% if s.is_pair %}<span class="badge badge-warning">一對二</span>{% endif %}
+              {% if s.status == 'active' %}
+                <span class="badge badge-success">在籍</span>
+              {% else %}
+                <span class="badge badge-muted">停用</span>
+              {% endif %}
+            </div>
           </div>
           <div class="stats">
             <div>
@@ -70,11 +81,11 @@
     {% if pagination.pages > 1 %}
       <div class="btn-group" style="justify-content:center;">
         {% if pagination.has_prev %}
-          <a class="btn btn-sm" href="{{ url_for('students.list_students', page=pagination.prev_num, search=search, status=status) }}">上一頁</a>
+          <a class="btn btn-sm" href="{{ url_for('students.list_students', page=pagination.prev_num, search=search, status=status, class_type=class_type) }}">上一頁</a>
         {% endif %}
         <span class="muted" style="align-self:center;">第 {{ pagination.page }} / {{ pagination.pages }} 頁</span>
         {% if pagination.has_next %}
-          <a class="btn btn-sm" href="{{ url_for('students.list_students', page=pagination.next_num, search=search, status=status) }}">下一頁</a>
+          <a class="btn btn-sm" href="{{ url_for('students.list_students', page=pagination.next_num, search=search, status=status, class_type=class_type) }}">下一頁</a>
         {% endif %}
       </div>
     {% endif %}

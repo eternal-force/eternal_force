@@ -129,9 +129,11 @@ def create_app(config_name=None):
     def inject_pending_account_count():
         from flask_login import current_user
 
+        from .services import visible_accounts_query
+
         count = 0
         if current_user.is_authenticated and current_user.role in ("admin", "coach"):
-            count = User.query.filter_by(status="pending").count()
+            count = visible_accounts_query(current_user).filter_by(status="pending").count()
         return {"pending_account_count": count}
 
     @app.context_processor

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}轉為一對二{% endblock %}
+{% block content %}
+<div class="stack">
+  <a class="back-link" href="{{ url_for('students.student_detail', student_id=student.id) }}">&larr; 回 {{ student.name }} 的明細頁</a>
+
+  <div class="card">
+    <h2 style="margin-top:0;">將「{{ student.name }}」轉為一對二</h2>
+    <p class="muted">
+      轉換後會建立一張新的一對二學生卡片，堂數從 0 開始，兩位學員各自登入都會看到共同的堂數與訓練菜單。
+      兩人原本的一對一卡片會停用保留(沒有任何紀錄的直接刪除)，學員登入後不再看到舊紀錄。
+    </p>
+
+    {% if student.is_pair %}
+      <p class="field-error">這位學生已經是一對二。</p>
+    {% elif student.status != 'active' %}
+      <p class="field-error">已停用的學生無法轉為一對二，請先重新啟用。</p>
+    {% elif not student.account %}
+      <p class="field-error">這位學生沒有登入帳號，無法轉為一對二。</p>
+    {% elif summary.remaining != 0 %}
+      <p class="field-error">
+        {% if summary.remaining > 0 %}尚有 {{ summary.remaining }} 堂未上完，需全部用完才能轉換。
+        {% else %}已超上 {{ -summary.remaining }} 堂，請先補購後再轉換。{% endif %}
+      </p>
+    {% elif candidates|length == 0 %}
+      <p class="field-error">目前沒有可配對的學生。對方需為啟用中的一對一學生帳號，且堂數已全部用完。</p>
+    {% else %}
+      <form method="post" data-confirm="確定要將這兩位學生轉為一對二嗎？">
+        {{ form.hidden_tag() }}
+        <div class="stack">
+          <div>
+            <label for="partner_id">一起上課的學生</label>
+            <select id="partner_id" name="partner_id" required>
+              <option value="">請選擇</option>
+              {% for c in candidates %}
+                <option value="{{ c.id }}">{{ c.name or c.username }}（{{ c.username }}）</option>
+              {% endfor %}
+            </select>
+            <p class="muted" style="font-size:0.78rem; margin:4px 0 0;">只列出啟用中、目前為一對一且堂數已全部用完的學生。</p>
+          </div>
+          <div class="btn-group">
+            <button type="submit" class="btn btn-primary">轉為一對二</button>
+          </div>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
