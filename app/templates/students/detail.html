@@ -38,7 +38,7 @@
         {% if current_user.role != 'student' %}
           {% if student.is_pair %}
           <form method="post" action="{{ url_for('students.split_student', student_id=student.id) }}"
-                data-confirm="確定要拆分為一對一嗎？兩位學員會各有一張新的學生卡片，這張一對二卡片會停用保留。">
+                data-confirm="確定要拆分為一對一嗎？兩位學員會回到各自原本的一對一學生卡片(找不到原卡片才新建)，這張一對二卡片會停用保留。">
             {{ delete_form.hidden_tag() }}
             <button type="submit" class="btn btn-sm">拆分為一對一</button>
           </form>

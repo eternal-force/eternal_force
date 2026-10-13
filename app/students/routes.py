@@ -204,7 +204,7 @@ def split_student(student_id):
         except services.ValidationError as exc:
             flash(exc.message, "danger")
             return redirect(url_for("students.student_detail", student_id=student_id))
-        flash(f"已將「{name}」拆分為一對一，兩位學員各有一張新的學生卡片。", "success")
+        flash(f"已將「{name}」拆分為一對一，兩位學員已回到各自的一對一學生卡片。", "success")
         return redirect(url_for("students.list_students"))
     return redirect(url_for("students.student_detail", student_id=student_id))
 

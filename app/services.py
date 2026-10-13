@@ -286,11 +286,37 @@ def _ensure_classes_used_up(student):
 
 
 def _retire_card(student):
-    """轉換後的舊卡片：有紀錄的停用保留當歷史，完全沒有紀錄的直接刪除。呼叫前帳號須已改連到新卡片。"""
+    """拆分後的一對二卡片：有紀錄的停用保留當歷史，完全沒有紀錄的直接刪除。呼叫前帳號須已改連到其他卡片。"""
     if student.purchase_records or student.class_records:
         student.status = "inactive"
     else:
         db.session.delete(student)
+
+
+def _find_former_card(member):
+    """學員轉為一對二前的一對一卡片(REQ-054)。REQ-054 之前配對的卡片沒有記下原帳號，
+    改找同名、已停用、沒有帳號的一對一卡片，剛好只有一張才採用，避免認錯人。"""
+    unlinked = Student.query.filter(Student.class_type == "one_on_one", ~Student.accounts.any())
+    card = (
+        unlinked.filter(Student.former_account_id == member.id).order_by(Student.updated_at.desc()).first()
+    )
+    if card is not None:
+        return card
+    same_name = unlinked.filter(
+        Student.former_account_id.is_(None), Student.status == "inactive", Student.name == member.name
+    ).all()
+    return same_name[0] if len(same_name) == 1 else None
+
+
+def _restore_former_card(member, card):
+    card.former_account_id = None
+    member.student = card
+    # 一對二期間學員可能改過自己的資料，帶回卡片，維持卡片與帳號一致。
+    card.name = member.name or card.name
+    card.phone, card.phone_type, card.email = member.phone, member.phone_type, member.email
+    if member.status == "active":
+        card.status = "active"
+    return card
 
 
 def _sync_pair_name(student):
@@ -326,7 +352,7 @@ def list_pair_candidates(user, student):
 
 
 def pair_students(student, partner):
-    """把一對一學生與另一位學生帳號配成一對二：建立新的共用卡片，兩張舊卡片停用保留(沒有紀錄的刪除)。"""
+    """把一對一學生與另一位學生帳號配成一對二：建立新的共用卡片，兩張原卡片都停用保留，拆分時再啟用。"""
     if student.is_pair:
         raise ValidationError("這位學生已經是一對二", field="student")
     if student.status != "active":
@@ -335,34 +361,40 @@ def pair_students(student, partner):
     if owner is None:
         raise ValidationError("這位學生沒有登入帳號，無法轉為一對二", field="student")
     _check_pair_partner(student, partner)
-    old_cards = [student, partner.student]
-    for card in old_cards:
+    old_cards = [(student, owner), (partner.student, partner)]
+    for card, _ in old_cards:
         _ensure_classes_used_up(card)
 
     pair = Student(name="", class_type="one_on_two", status="active", enrollment_date=date.today())
     pair.accounts = [owner, partner]
     _sync_pair_name(pair)
     db.session.add(pair)
-    for card in old_cards:
-        _retire_card(card)
+    for card, account in old_cards:
+        card.status = "inactive"
+        card.former_account_id = account.id
     db.session.commit()
     return pair
 
 
 def split_pair(student):
-    """把一對二拆回一對一：每位學員各建一張新的一對一卡片，原一對二卡片停用保留(沒有紀錄的刪除)。"""
+    """把一對二拆回一對一：每位學員回到原本停用的一對一卡片並重新啟用，找不到原卡片才新建；
+    原一對二卡片停用保留(沒有紀錄的刪除)。"""
     if not student.is_pair:
         raise ValidationError("這位學生不是一對二", field="student")
     _ensure_classes_used_up(student)
-    new_cards = []
+    cards = []
     for member in list(student.accounts):
-        card = create_student_from_registration(member)
-        if member.status != "active":
-            card.status = "inactive"
-        new_cards.append(card)
+        former = _find_former_card(member)
+        if former is not None:
+            card = _restore_former_card(member, former)
+        else:
+            card = create_student_from_registration(member)
+            if member.status != "active":
+                card.status = "inactive"
+        cards.append(card)
     _retire_card(student)
     db.session.commit()
-    return new_cards
+    return cards
 
 
 def get_pair_member_or_404(student, user_id):

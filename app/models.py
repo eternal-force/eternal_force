@@ -87,6 +87,9 @@ class Student(db.Model):
         server_default="one_on_one",
         nullable=False,
     )
+    # 轉為一對二而停用的一對一卡片，記下原本的帳號，拆分時才能找回來重新啟用(REQ-054)。
+    # 不設外鍵：users.student_id 已指向 students，互相參照會讓建表/刪表順序無解。
+    former_account_id = db.Column(db.Integer, index=True)
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = db.Column(
         db.DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False

@@ -64,11 +64,12 @@ def test_pair_creates_shared_card_and_retires_old_cards(db, alice, bob):
     assert pair.name == "王小明、陳大華"
     assert alice.student_id == pair.id and bob.student_id == pair.id
     assert pair.remaining == 0 and pair.total_purchased == 0
-    # 有紀錄的舊卡片停用保留，沒有紀錄的直接刪除
-    alice_old = db.session.get(Student, alice_old_id)
-    assert alice_old.status == "inactive" and alice_old.accounts == []
-    assert len(alice_old.class_records) == 2
-    assert db.session.get(Student, bob_old_id) is None
+    # 兩張原卡片都停用保留(不論有沒有紀錄)，並記下原本的帳號(REQ-054)
+    for old_id, account in ((alice_old_id, alice), (bob_old_id, bob)):
+        old = db.session.get(Student, old_id)
+        assert old.status == "inactive" and old.accounts == []
+        assert old.former_account_id == account.id
+    assert len(db.session.get(Student, alice_old_id).class_records) == 2
     # 舊卡片停用不會連帶停用帳號
     assert alice.status == "active" and bob.status == "active"
 
@@ -174,21 +175,74 @@ def test_list_filters_by_class_type_and_searches_either_name(logged_in_client, d
 
 # ---------- 拆分 ----------
 
-def test_split_creates_one_on_one_cards(db, alice, bob, pair):
+@pytest.fixture()
+def original_cards(alice, bob):
+    """配對前兩人各自的一對一卡片 id；需排在 pair 之前。"""
+    return {"alice": alice.student_id, "bob": bob.student_id}
+
+
+def test_split_reactivates_original_cards(db, alice, bob, original_cards, pair):
     pair_id = pair.id
     pair.purchase_records.append(PurchaseRecord(purchase_date=date(2026, 3, 1), quantity=1))
     pair.class_records.append(ClassRecord(class_date=date(2026, 3, 2), class_time=time(9, 0)))
     db.session.commit()
+    services.update_pair_member(pair, bob, {"name": "陳大華改", "phone": "0933333333", "phone_type": "mobile"})
 
     services.split_pair(pair)
 
-    assert alice.student_id != bob.student_id and pair_id not in (alice.student_id, bob.student_id)
+    # 回到原本的卡片並重新啟用，不多出新卡片
+    assert alice.student_id == original_cards["alice"] and bob.student_id == original_cards["bob"]
+    assert Student.query.count() == 3
     for account in (alice, bob):
-        assert account.student.class_type == "one_on_one"
-        assert account.student.name == account.name and account.student.status == "active"
-        assert account.student.remaining == 0
+        card = account.student
+        assert card.class_type == "one_on_one" and card.status == "active"
+        assert card.former_account_id is None and card.remaining == 0
+    assert len(alice.student.class_records) == 2
+    # 一對二期間改過的個人資料帶回卡片
+    assert (bob.student.name, bob.student.phone) == ("陳大華改", "0933333333")
     old = db.session.get(Student, pair_id)
     assert old.status == "inactive" and old.accounts == []
+
+
+def test_split_creates_card_when_original_is_gone(db, alice, bob, original_cards, pair):
+    db.session.delete(db.session.get(Student, original_cards["bob"]))
+    db.session.commit()
+
+    services.split_pair(pair)
+
+    assert alice.student_id == original_cards["alice"]
+    assert bob.student_id not in original_cards.values()
+    assert bob.student.class_type == "one_on_one" and bob.student.status == "active"
+
+
+def test_split_falls_back_to_same_name_card_for_older_pairs(db, alice, bob, original_cards, pair):
+    """REQ-054 之前配對的卡片沒有記下原帳號：同名、已停用、沒有帳號的一對一卡片剛好一張才採用。"""
+    for old_id in original_cards.values():
+        db.session.get(Student, old_id).former_account_id = None
+    # 另一張同名的停用卡片讓「陳大華」無法判斷是哪一張
+    db.session.add(Student(name="陳大華", status="inactive"))
+    db.session.commit()
+
+    services.split_pair(pair)
+
+    assert alice.student_id == original_cards["alice"] and alice.student.status == "active"
+    assert bob.student_id != original_cards["bob"]
+    assert Student.query.filter_by(name="陳大華").count() == 3
+
+
+def test_split_keeps_card_inactive_for_disabled_account(db, alice, bob, original_cards, pair):
+    services.set_account_status(bob, "disabled")
+    services.split_pair(pair)
+    assert bob.student_id == original_cards["bob"] and bob.student.status == "inactive"
+    assert alice.student.status == "active"
+
+
+def test_pair_again_after_split_reuses_original_cards(db, alice, bob, original_cards, pair):
+    services.split_pair(pair)
+    again = services.pair_students(alice.student, bob)
+    assert again.is_pair and alice.student_id == again.id
+    services.split_pair(again)
+    assert alice.student_id == original_cards["alice"] and bob.student_id == original_cards["bob"]
 
 
 def test_split_requires_classes_used_up(logged_in_client, db, alice, bob, pair):
@@ -206,7 +260,7 @@ def test_split_empty_pair_card_is_deleted(db, alice, bob, pair):
     pair_id = pair.id
     services.split_pair(pair)
     assert db.session.get(Student, pair_id) is None
-    assert alice.student is not None and bob.student is not None
+    assert alice.student.status == "active" and bob.student.status == "active"
 
 
 # ---------- 編輯個人資料 ----------
