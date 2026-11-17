@@ -944,6 +944,20 @@ ANNOUNCEMENT_STATUS_LABELS = {"scheduled": "未上架", "live": "上架中", "ex
 _AUDIENCE_FIELDS = ("show_to_student", "show_to_coach", "show_to_admin")
 
 
+def to_taipei(value):
+    """把 UTC 時間(帶或不帶時區；SQLite 讀回來會是不帶時區)轉成台灣時間，None 原樣回傳。"""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(TAIPEI_TZ)
+
+
+def record_login(user):
+    user.last_login_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+
 def taipei_now():
     """目前的台灣時間(不帶時區)，與 Announcement 上/下架欄位的存法一致。"""
     return datetime.now(TAIPEI_TZ).replace(tzinfo=None)

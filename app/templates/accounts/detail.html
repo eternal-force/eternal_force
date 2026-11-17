@@ -56,6 +56,10 @@
         <div class="muted" style="font-size:0.78rem;">建立時間</div>
         <div>{{ account.created_at.strftime('%Y-%m-%d %H:%M') if account.created_at else '-' }}</div>
       </div>
+      <div>
+        <div class="muted" style="font-size:0.78rem;">最後登入</div>
+        <div>{{ (account.last_login_at|taipei).strftime('%Y-%m-%d %H:%M') if account.last_login_at else '從未登入' }}</div>
+      </div>
     </div>
 
     {% if account.goal %}

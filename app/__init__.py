@@ -4,7 +4,7 @@ from flask import Flask, jsonify, redirect, render_template, request, session, u
 
 from .config import get_config
 from .extensions import csrf, db, limiter, login_manager
-from .services import category_badge_class
+from .services import category_badge_class, to_taipei
 
 
 # 登入成功時設為 True，登入後第一個渲染的頁面會彈跳顯示公告並清除。
@@ -21,6 +21,7 @@ def create_app(config_name=None):
     limiter.init_app(app)
 
     app.jinja_env.filters["category_badge_class"] = category_badge_class
+    app.jinja_env.filters["taipei"] = to_taipei
 
     from .models import User
 

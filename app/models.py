@@ -47,6 +47,8 @@ class User(UserMixin, db.Model):
         "Student", foreign_keys=[student_id], backref=db.backref("accounts", order_by="User.id")
     )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+    # 最後一次成功登入的時間(UTC)；從未登入為 NULL。
+    last_login_at = db.Column(db.DateTime(timezone=True))
 
     def set_password(self, raw_password):
         self.password_hash = generate_password_hash(raw_password, method="pbkdf2:sha256")

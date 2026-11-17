@@ -48,6 +48,7 @@
         <div>姓名</div>
         <div>角色</div>
         <div>狀態</div>
+        <div>最後登入</div>
         <div>操作</div>
       </div>
       {% for u in accounts %}
@@ -67,6 +68,10 @@
             {% else %}
               <span class="badge badge-danger">{{ status_label.get(u.status, u.status) }}</span>
             {% endif %}
+          </div>
+          <div>
+            <span class="field-label-mobile">最後登入</span>
+            {% if u.last_login_at %}{{ (u.last_login_at|taipei).strftime('%Y-%m-%d %H:%M') }}{% else %}<span class="muted">從未登入</span>{% endif %}
           </div>
           <div class="record-row-actions">
             <a class="btn btn-sm" href="{{ url_for('accounts.view_account', user_id=u.id) }}">檢視</a>

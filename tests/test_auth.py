@@ -123,3 +123,18 @@ def test_login_with_disabled_account_is_refused(client, db, pending_student_user
     db.session.commit()
     resp = login(client, PENDING_STUDENT_USERNAME, PENDING_STUDENT_PASSWORD)
     assert "已被停用" in resp.get_data(as_text=True)
+
+
+def test_successful_login_records_last_login_at(client, db, admin_user):
+    assert admin_user.last_login_at is None
+    login(client)
+    db.session.expire_all()
+    assert db.session.get(User, admin_user.id).last_login_at is not None
+
+
+def test_failed_or_refused_login_does_not_record_last_login_at(client, db, admin_user, pending_student_user):
+    login(client, password="wrong-password")
+    login(client, username=PENDING_STUDENT_USERNAME, password=PENDING_STUDENT_PASSWORD)
+    db.session.expire_all()
+    assert db.session.get(User, admin_user.id).last_login_at is None
+    assert db.session.get(User, pending_student_user.id).last_login_at is None

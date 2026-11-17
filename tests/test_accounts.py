@@ -456,3 +456,22 @@ def test_new_coach_is_active_immediately_without_verification(logged_in_client, 
     # 密碼由他人設定，登入後先導向修改密碼(不需驗證即可登入)
     resp = login(logged_in_client, "new_coach", "NewCoach123")
     assert "首次登入請先修改密碼" in resp.get_data(as_text=True)
+
+
+def test_accounts_list_and_detail_show_last_login(logged_in_client, pending_student_user):
+    body = logged_in_client.get("/accounts/").get_data(as_text=True)
+    assert "最後登入" in body
+    assert "從未登入" in body  # pending_student_user 從未登入
+
+    body = logged_in_client.get(f"/accounts/{pending_student_user.id}").get_data(as_text=True)
+    assert "從未登入" in body
+
+
+def test_to_taipei_converts_utc_to_utc_plus_8():
+    from datetime import datetime, timezone
+
+    from app.services import to_taipei
+
+    assert to_taipei(None) is None
+    assert to_taipei(datetime(2026, 11, 17, 2, 30)).hour == 10
+    assert to_taipei(datetime(2026, 11, 17, 2, 30, tzinfo=timezone.utc)).strftime("%Y-%m-%d %H:%M") == "2026-11-17 10:30"

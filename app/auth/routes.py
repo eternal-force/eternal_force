@@ -25,6 +25,7 @@ def login():
                 flash("此帳號已被停用，請聯絡管理者。", "danger")
             else:
                 login_user(user)
+                services.record_login(user)
                 session[LOGIN_ANNOUNCEMENTS_KEY] = True
                 if user.must_change_password:
                     flash("首次登入請先修改密碼。", "warning")
