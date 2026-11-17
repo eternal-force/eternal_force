@@ -3,6 +3,7 @@
 """
 
 import re
+import secrets
 import zlib
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -10,7 +11,17 @@ from decimal import Decimal, InvalidOperation
 from flask import abort
 
 from .extensions import db
-from .models import Announcement, ClassExercise, ClassRecord, ExerciseCatalogItem, PurchaseRecord, Student, User
+from .models import (
+    Announcement,
+    ClassExercise,
+    ClassRecord,
+    ExerciseCatalogItem,
+    LoginSession,
+    PageView,
+    PurchaseRecord,
+    Student,
+    User,
+)
 
 
 class ValidationError(Exception):
@@ -953,9 +964,87 @@ def to_taipei(value):
     return value.astimezone(TAIPEI_TZ)
 
 
-def record_login(user):
-    user.last_login_at = datetime.now(timezone.utc)
+def record_login(user, ip_address=None, user_agent=None):
+    """登入成功：更新最後登入時間，並新增一筆登入紀錄(回傳它，id 存進 session 供之後的頁面紀錄連結)。"""
+    now = datetime.now(timezone.utc)
+    user.last_login_at = now
+    login_session = LoginSession(
+        user=user,
+        login_at=now,
+        last_seen_at=now,
+        ip_address=(ip_address or "")[:45] or None,
+        user_agent=(user_agent or "")[:500] or None,
+    )
+    db.session.add(login_session)
     db.session.commit()
+    return login_session
+
+
+def record_logout(login_session_id, user_id):
+    login_session = db.session.get(LoginSession, login_session_id) if login_session_id else None
+    if login_session is None or login_session.user_id != user_id:
+        return
+    now = datetime.now(timezone.utc)
+    login_session.logout_at = now
+    login_session.last_seen_at = now
+    db.session.commit()
+
+
+def new_page_view_key():
+    return secrets.token_hex(16)
+
+
+def _touch_login_session(login_session_id, user_id, now):
+    login_session = db.session.get(LoginSession, login_session_id) if login_session_id else None
+    if login_session is None or login_session.user_id != user_id or login_session.logout_at is not None:
+        return None
+    login_session.last_seen_at = now
+    return login_session
+
+
+def record_page_view(user, view_key, url, endpoint=None, login_session_id=None):
+    now = datetime.now(timezone.utc)
+    login_session = _touch_login_session(login_session_id, user.id, now)
+    db.session.add(
+        PageView(
+            view_key=view_key,
+            user_id=user.id,
+            login_session_id=login_session.id if login_session else None,
+            url=url[:2048],
+            endpoint=(endpoint or "")[:120] or None,
+            visited_at=now,
+        )
+    )
+    db.session.commit()
+
+
+# 瀏覽器回報值的合理上限，超出的視為異常資料不採用。
+_MAX_LOAD_MS = 10 * 60 * 1000
+_MAX_DURATION_MS = 7 * 24 * 60 * 60 * 1000
+
+
+def _bounded_ms(value, upper):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    value = int(value)
+    return value if 0 <= value <= upper else None
+
+
+def finish_page_view(user, view_key, load_ms=None, duration_ms=None):
+    """瀏覽器離開(或切走)頁面時回報載入與停留時間；只能更新自己的紀錄。回傳是否有找到紀錄。"""
+    page_view = PageView.query.filter_by(view_key=view_key, user_id=user.id).first()
+    if page_view is None:
+        return False
+    load_ms = _bounded_ms(load_ms, _MAX_LOAD_MS)
+    duration_ms = _bounded_ms(duration_ms, _MAX_DURATION_MS)
+    if load_ms is not None:
+        page_view.load_ms = load_ms
+    # 同一頁可能回報多次(切走又切回來)，停留時間是累計值，只往上更新。
+    if duration_ms is not None and (page_view.duration_ms is None or duration_ms > page_view.duration_ms):
+        page_view.duration_ms = duration_ms
+    _touch_login_session(page_view.login_session_id, user.id, datetime.now(timezone.utc))
+    db.session.commit()
+    return True
 
 
 def taipei_now():

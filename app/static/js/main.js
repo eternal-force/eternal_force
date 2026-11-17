@@ -336,3 +336,50 @@
   render();
   dialog.showModal();
 })();
+
+// 頁面瀏覽紀錄：離開或切走頁面時回報「頁面載入花多久」與「在前景停留多久」(只累計看得到頁面的時間)。
+(function () {
+  var url = document.body && document.body.getAttribute("data-page-view-url");
+  if (!url || !navigator.sendBeacon) {
+    return;
+  }
+  var visibleMs = 0;
+  var visibleSince = document.visibilityState === "visible" ? Date.now() : null;
+
+  var loadMs = function () {
+    var nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+    if (nav && nav.loadEventEnd > 0) {
+      return Math.round(nav.loadEventEnd);
+    }
+    return null;
+  };
+
+  var report = function () {
+    if (visibleSince !== null) {
+      visibleMs += Date.now() - visibleSince;
+      visibleSince = null;
+    }
+    var body = JSON.stringify({ load_ms: loadMs(), duration_ms: Math.round(visibleMs) });
+    navigator.sendBeacon(url, new Blob([body], { type: "application/json" }));
+  };
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      report();
+    } else if (visibleSince === null) {
+      visibleSince = Date.now();
+    }
+  });
+  // 登出後就無法回報了，所以按登出時先回報這一頁。
+  document.addEventListener("submit", function (event) {
+    if (event.target.classList && event.target.classList.contains("logout-form")) {
+      report();
+    }
+  });
+  // 從上一頁快取(bfcache)回來時重新開始計時。
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted && document.visibilityState === "visible" && visibleSince === null) {
+      visibleSince = Date.now();
+    }
+  });
+})();

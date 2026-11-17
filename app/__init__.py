@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
 
 from .config import get_config
 from .extensions import csrf, db, limiter, login_manager
@@ -9,6 +9,8 @@ from .services import category_badge_class, to_taipei
 
 # 登入成功時設為 True，登入後第一個渲染的頁面會彈跳顯示公告並清除。
 LOGIN_ANNOUNCEMENTS_KEY = "show_login_announcements"
+# 這次登入在 login_sessions 表的 id，頁面瀏覽紀錄靠它連到同一次登入。
+LOGIN_SESSION_KEY = "login_session_id"
 
 
 def create_app(config_name=None):
@@ -61,7 +63,7 @@ def create_app(config_name=None):
     commands.register(app)
 
     # 須修改密碼的帳號只能進入修改密碼頁與登出，其餘頁面一律導向修改密碼(API 回 403)。
-    _PASSWORD_CHANGE_ALLOWED = {"auth.change_own_password", "auth.logout", "static", "healthz"}
+    _PASSWORD_CHANGE_ALLOWED = {"auth.change_own_password", "auth.logout", "static", "healthz", "finish_page_view"}
 
     @app.before_request
     def require_password_change():
@@ -88,6 +90,61 @@ def create_app(config_name=None):
             "font-src 'self' https://cdnjs.cloudflare.com",
         )
         return response
+
+    @app.template_global()
+    def page_view_key():
+        """base.html 呼叫：產生這次頁面的紀錄代碼，回應成功送出後才寫入 page_views(見 record_page_view)。"""
+        from flask_login import current_user
+
+        if not current_user.is_authenticated:
+            return None
+        if "page_view_key" not in g:
+            from .services import new_page_view_key
+
+            g.page_view_key = new_page_view_key()
+        return g.page_view_key
+
+    @app.after_request
+    def record_page_view(response):
+        """登入使用者成功開啟的頁面記一筆；錯誤頁、導向、API、靜態檔都不記。紀錄失敗不影響頁面。"""
+        key = g.pop("page_view_key", None)
+        if key is None or request.method != "GET" or response.status_code != 200:
+            return response
+        if response.mimetype != "text/html":
+            return response
+        from flask_login import current_user
+
+        from . import services
+
+        if not current_user.is_authenticated:
+            return response
+        try:
+            url = request.full_path.rstrip("?") if request.query_string else request.path
+            services.record_page_view(
+                current_user, key, url, endpoint=request.endpoint, login_session_id=session.get(LOGIN_SESSION_KEY)
+            )
+        except Exception:
+            db.session.rollback()
+            app.logger.exception("記錄頁面瀏覽失敗")
+        return response
+
+    @app.route("/page-views/<view_key>/finish", methods=["POST"])
+    @csrf.exempt
+    @limiter.exempt
+    def finish_page_view(view_key):
+        """瀏覽器離開/切走頁面時以 sendBeacon 回報載入與停留時間。
+        不檢查 CSRF：view_key 是隨機值，只會出現在本人的頁面上，且只能更新自己的紀錄。"""
+        from flask_login import current_user
+
+        from . import services
+
+        if not current_user.is_authenticated:
+            return "", 401
+        data = request.get_json(silent=True, force=True) or {}
+        found = services.finish_page_view(
+            current_user, view_key, load_ms=data.get("load_ms"), duration_ms=data.get("duration_ms")
+        )
+        return "", 204 if found else 404
 
     @app.errorhandler(403)
     def forbidden(err):

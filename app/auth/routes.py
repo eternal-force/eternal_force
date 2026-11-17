@@ -1,7 +1,7 @@
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from .. import LOGIN_ANNOUNCEMENTS_KEY, list_filters, services
+from .. import LOGIN_ANNOUNCEMENTS_KEY, LOGIN_SESSION_KEY, list_filters, services
 from ..extensions import limiter
 from ..forms import ChangeOwnPasswordForm, LoginForm, RegisterForm
 from ..models import User
@@ -25,7 +25,10 @@ def login():
                 flash("此帳號已被停用，請聯絡管理者。", "danger")
             else:
                 login_user(user)
-                services.record_login(user)
+                login_session = services.record_login(
+                    user, ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent")
+                )
+                session[LOGIN_SESSION_KEY] = login_session.id
                 session[LOGIN_ANNOUNCEMENTS_KEY] = True
                 if user.must_change_password:
                     flash("首次登入請先修改密碼。", "warning")
@@ -86,6 +89,7 @@ def change_own_password():
 @bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
+    services.record_logout(session.pop(LOGIN_SESSION_KEY, None), current_user.id)
     logout_user()
     list_filters.clear_all()
     flash("已登出。", "success")

@@ -9,7 +9,7 @@
         crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="{{ asset_url('css/style.css') }}">
 </head>
-<body>
+<body{% set pv_key = page_view_key() %}{% if pv_key %} data-page-view-url="{{ url_for('finish_page_view', view_key=pv_key) }}"{% endif %}>
   <div class="app-shell">
     {% if current_user.is_authenticated %}
     <a class="app-banner" href="{{ url_for('students.list_students') }}">

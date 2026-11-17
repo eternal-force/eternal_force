@@ -340,3 +340,61 @@ class Announcement(db.Model):
             "coach": self.show_to_coach,
             "admin": self.show_to_admin,
         }.get(role, False)
+
+
+class LoginSession(db.Model):
+    """每次成功登入一筆：登入時間、最後活動時間、登出時間，用來算這次登入用了多久。"""
+
+    __tablename__ = "login_sessions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user = db.relationship("User", backref=db.backref("login_sessions", passive_deletes=True))
+    login_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False, index=True)
+    # 每次瀏覽頁面或頁面回報停留時間時更新；沒按登出就關掉瀏覽器時，以它當作結束時間。
+    last_seen_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
+    # 按「登出」時寫入；直接關掉瀏覽器則維持 NULL。
+    logout_at = db.Column(db.DateTime(timezone=True))
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.String(500))
+
+    @property
+    def duration_seconds(self):
+        """這次登入用了多久(秒)：登出時間或最後活動時間 減 登入時間。"""
+        end = self.logout_at or self.last_seen_at
+        if end is None or self.login_at is None:
+            return None
+        start = self.login_at
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+        return max(0, int((end - start).total_seconds()))
+
+
+class PageView(db.Model):
+    """登入使用者每開一個頁面一筆：網址、進入時間、頁面載入花多久、停留多久。"""
+
+    __tablename__ = "page_views"
+
+    id = db.Column(db.Integer, primary_key=True)
+    # 隨機產生，嵌在頁面裡；瀏覽器離開頁面時用它回報載入與停留時間(別人猜不到，無法竄改他人紀錄)。
+    view_key = db.Column(db.String(32), unique=True, nullable=False)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user = db.relationship("User", backref=db.backref("page_views", passive_deletes=True))
+    login_session_id = db.Column(
+        db.Integer, db.ForeignKey("login_sessions.id", ondelete="SET NULL"), index=True
+    )
+    login_session = db.relationship("LoginSession", backref="page_views")
+    # 路徑加查詢字串，例如 /students?page=2
+    url = db.Column(db.String(2048), nullable=False)
+    endpoint = db.Column(db.String(120))
+    visited_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False, index=True)
+    # 由瀏覽器回報；使用者還沒離開或回報失敗(例如手機直接被系統關掉)時為 NULL。
+    load_ms = db.Column(db.Integer)
+    # 頁面實際在前景(看得到)的累計時間，切到別的分頁或縮小時不計。
+    duration_ms = db.Column(db.Integer)
