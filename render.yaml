@@ -4,7 +4,8 @@ services:
     env: python
     plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:app
+    # gthread：一個行程開 4 個執行緒，等資料庫(遠端)回應時可同時服務其他使用者；限流計數仍在同一行程內共用。
+    startCommand: gunicorn --worker-class gthread --threads 4 wsgi:app
     healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION

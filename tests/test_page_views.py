@@ -7,6 +7,13 @@ from .conftest import ACTIVE_STUDENT_PASSWORD, ACTIVE_STUDENT_USERNAME, get_csrf
 FINISH_URL_RE = re.compile(r'data-page-view-url="(/page-views/[0-9a-f]{32}/finish)"')
 
 
+def _open(client, url):
+    """開頁面並關閉回應：頁面瀏覽紀錄在回應送完(關閉)後才寫入，正式環境由 gunicorn 關閉。"""
+    resp = client.get(url)
+    resp.close()
+    return resp
+
+
 def _finish_url(html):
     match = FINISH_URL_RE.search(html)
     assert match, "頁面上找不到頁面瀏覽回報網址"
@@ -35,7 +42,7 @@ def test_logout_records_logout_time(logged_in_client, db, admin_user):
 
 
 def test_page_view_recorded_with_url_and_login_session(logged_in_client, db, admin_user):
-    logged_in_client.get("/students/?page=1")
+    _open(logged_in_client, "/students/?page=1")
     login_session = LoginSession.query.filter_by(user_id=admin_user.id).one()
     view = PageView.query.filter_by(url="/students/?page=1").one()
     assert view.user_id == admin_user.id
@@ -44,19 +51,27 @@ def test_page_view_recorded_with_url_and_login_session(logged_in_client, db, adm
     assert view.load_ms is None and view.duration_ms is None
 
 
+def test_page_view_is_written_only_after_response_closes(logged_in_client, db):
+    before = PageView.query.count()
+    resp = logged_in_client.get("/students/")
+    assert PageView.query.count() == before
+    resp.close()
+    assert PageView.query.count() == before + 1
+
+
 def test_not_logged_in_pages_and_errors_are_not_recorded(client, db, admin_user):
-    client.get("/login")
+    _open(client, "/login")
     assert PageView.query.count() == 0
     login(client)
     before = PageView.query.count()
-    client.get("/no-such-page")
-    client.get("/healthz")
-    client.get("/")  # 導向，不記
+    _open(client, "/no-such-page")
+    _open(client, "/healthz")
+    _open(client, "/")  # 導向，不記
     assert PageView.query.count() == before
 
 
 def test_finish_page_view_records_load_and_duration(logged_in_client, db):
-    url = _finish_url(logged_in_client.get("/students/").get_data(as_text=True))
+    url = _finish_url(_open(logged_in_client, "/students/").get_data(as_text=True))
     resp = logged_in_client.post(url, json={"load_ms": 350, "duration_ms": 12000})
     assert resp.status_code == 204
     # 再回報一次較小的停留時間不會倒退
@@ -68,7 +83,7 @@ def test_finish_page_view_records_load_and_duration(logged_in_client, db):
 
 
 def test_finish_page_view_ignores_invalid_values(logged_in_client, db):
-    url = _finish_url(logged_in_client.get("/students/").get_data(as_text=True))
+    url = _finish_url(_open(logged_in_client, "/students/").get_data(as_text=True))
     logged_in_client.post(url, json={"load_ms": -1, "duration_ms": "abc"})
     db.session.expire_all()
     view = PageView.query.filter(PageView.url == "/students/").order_by(PageView.id.desc()).first()
@@ -82,7 +97,7 @@ def _logout(client):
 
 def test_cannot_finish_another_users_page_view(logged_in_client, db, active_student_user):
     client = logged_in_client
-    url = _finish_url(client.get("/students/").get_data(as_text=True))
+    url = _finish_url(_open(client, "/students/").get_data(as_text=True))
     _logout(client)
     assert client.post(url, json={"duration_ms": 999}).status_code == 401
     login(client, ACTIVE_STUDENT_USERNAME, ACTIVE_STUDENT_PASSWORD)

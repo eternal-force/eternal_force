@@ -170,9 +170,13 @@ def list_students(search=None, status=None, user=None, class_type=None):
     return query.order_by(Student.created_at.desc()).all()
 
 
-def get_student_or_404(student_id, user=None):
-    """有帶 user 時一併檢查該使用者能否存取這位學生，不能則 403。"""
-    student = db.session.get(Student, student_id)
+def get_student_or_404(student_id, user=None, options=()):
+    """有帶 user 時一併檢查該使用者能否存取這位學生，不能則 403。
+    options 可帶 selectinload(...) 等，把頁面會用到的關聯一次載入，避免每筆紀錄各查一次資料庫。"""
+    if options:
+        student = Student.query.options(*options).filter_by(id=student_id).first()
+    else:
+        student = db.session.get(Student, student_id)
     if not student:
         abort(404)
     if user is not None:
@@ -995,21 +999,26 @@ def new_page_view_key():
 
 
 def _touch_login_session(login_session_id, user_id, now):
-    login_session = db.session.get(LoginSession, login_session_id) if login_session_id else None
-    if login_session is None or login_session.user_id != user_id or login_session.logout_at is not None:
-        return None
-    login_session.last_seen_at = now
-    return login_session
+    """把這次登入的最後活動時間更新為 now，回傳是否有更新到(是本人且尚未登出的登入紀錄)。
+    直接下 UPDATE，不先查出來，省一次資料庫來回。"""
+    if not login_session_id:
+        return False
+    updated = LoginSession.query.filter(
+        LoginSession.id == login_session_id,
+        LoginSession.user_id == user_id,
+        LoginSession.logout_at.is_(None),
+    ).update({LoginSession.last_seen_at: now}, synchronize_session=False)
+    return updated == 1
 
 
-def record_page_view(user, view_key, url, endpoint=None, login_session_id=None):
+def record_page_view(user_id, view_key, url, endpoint=None, login_session_id=None):
     now = datetime.now(timezone.utc)
-    login_session = _touch_login_session(login_session_id, user.id, now)
+    linked = _touch_login_session(login_session_id, user_id, now)
     db.session.add(
         PageView(
             view_key=view_key,
-            user_id=user.id,
-            login_session_id=login_session.id if login_session else None,
+            user_id=user_id,
+            login_session_id=login_session_id if linked else None,
             url=url[:2048],
             endpoint=(endpoint or "")[:120] or None,
             visited_at=now,

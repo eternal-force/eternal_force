@@ -118,14 +118,24 @@ def create_app(config_name=None):
 
         if not current_user.is_authenticated:
             return response
-        try:
-            url = request.full_path.rstrip("?") if request.query_string else request.path
-            services.record_page_view(
-                current_user, key, url, endpoint=request.endpoint, login_session_id=session.get(LOGIN_SESSION_KEY)
-            )
-        except Exception:
-            db.session.rollback()
-            app.logger.exception("記錄頁面瀏覽失敗")
+        # 資料庫在遠端，每次寫入都要等網路來回；改在頁面送出給瀏覽器之後才寫，使用者不必等這段時間。
+        values = {
+            "user_id": current_user.id,
+            "view_key": key,
+            "url": request.full_path.rstrip("?") if request.query_string else request.path,
+            "endpoint": request.endpoint,
+            "login_session_id": session.get(LOGIN_SESSION_KEY),
+        }
+
+        def write_page_view():
+            with app.app_context():
+                try:
+                    services.record_page_view(**values)
+                except Exception:
+                    db.session.rollback()
+                    app.logger.exception("記錄頁面瀏覽失敗")
+
+        response.call_on_close(write_page_view)
         return response
 
     @app.route("/page-views/<view_key>/finish", methods=["POST"])

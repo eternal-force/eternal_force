@@ -8,7 +8,7 @@ from .. import list_filters, services
 from ..auth.decorators import roles_required
 from ..extensions import db
 from ..forms import DeleteConfirmForm, StudentForm
-from ..models import Student, User
+from ..models import ClassRecord, Student, User
 
 bp = Blueprint("students", __name__, url_prefix="/students")
 
@@ -86,7 +86,17 @@ def new_student():
 def student_detail(student_id):
     if current_user.role == "student" and student_id != current_user.student_id:
         abort(403)
-    student = services.get_student_or_404(student_id, current_user)
+    # 每筆上課紀錄都會顯示教練與訓練菜單，一次批次載入，避免每筆紀錄各查一次資料庫
+    student = services.get_student_or_404(
+        student_id,
+        current_user,
+        options=(
+            selectinload(Student.accounts),
+            selectinload(Student.purchase_records),
+            selectinload(Student.class_records).selectinload(ClassRecord.exercises),
+            selectinload(Student.class_records).joinedload(ClassRecord.coach),
+        ),
+    )
     return render_template(
         "students/detail.html",
         student=student,
