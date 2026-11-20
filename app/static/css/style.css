@@ -55,25 +55,9 @@ button {
 /* 橫幅等比例縮至高度 150px，兩側空白以橫幅底色填滿整個寬度。
    橫幅是一般排版(非 fixed / sticky)，會跟著內容一起捲出畫面。 */
 .app-banner {
-  --banner-fade-height: 28px;
-  position: relative;
   display: block;
   background: #232323;
-  /* 底部多留一段給漸層遮罩，避免遮住 Logo 下緣的「ETERNAL FORCE」字樣 */
-  padding-bottom: var(--banner-fade-height);
   transform-origin: center top;
-}
-
-/* 底部漸層遮罩：由透明漸變到頁面背景色，讓黑色橫幅與下方內容柔和銜接 */
-.app-banner::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: var(--banner-fade-height);
-  background: linear-gradient(to bottom, rgba(246, 245, 242, 0), var(--color-bg));
-  pointer-events: none;
 }
 
 /* 捲動淡出：捲動 0 → 橫幅高度時，opacity 1 → 0 線性過渡，並稍微上移、縮小；往回捲時依同比例淡入。
