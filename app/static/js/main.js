@@ -210,6 +210,53 @@
   });
 })();
 
+// 橫幅捲動淡出(JS 備援)：瀏覽器不支援 CSS scroll-driven animation 時才啟用，
+// 以 requestAnimationFrame 節流 scroll 事件；使用者開啟「減少動態效果」時不做淡出。
+(function () {
+  var banner = document.querySelector(".app-banner");
+  if (!banner) return;
+  if (window.CSS && CSS.supports && CSS.supports("animation-timeline: view()")) return;
+
+  var reducedMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+  var ticking = false;
+
+  function reset() {
+    banner.style.opacity = "";
+    banner.style.transform = "";
+  }
+
+  function update() {
+    ticking = false;
+    if (reducedMotion && reducedMotion.matches) {
+      reset();
+      return;
+    }
+    var height = banner.offsetHeight || 1;
+    var progress = Math.min(Math.max(window.scrollY / height, 0), 1);
+    banner.style.opacity = String(1 - progress);
+    banner.style.transform =
+      "translateY(" + (-12 * progress) + "px) scale(" + (1 - 0.04 * progress) + ")";
+  }
+
+  function requestUpdate() {
+    if (!ticking) {
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }
+  }
+
+  window.addEventListener("scroll", requestUpdate, { passive: true });
+  window.addEventListener("resize", requestUpdate);
+  if (reducedMotion) {
+    if (reducedMotion.addEventListener) {
+      reducedMotion.addEventListener("change", requestUpdate);
+    } else if (reducedMotion.addListener) {
+      reducedMotion.addListener(requestUpdate);
+    }
+  }
+  update();
+})();
+
 // 下拉選單＋「其他」自訂輸入框(訓練項目表單的分類)：下拉的選擇寫入實際送出的文字欄位，選「其他」時才顯示輸入框。
 (function () {
   document.querySelectorAll("select[data-custom-input]").forEach(function (select) {
