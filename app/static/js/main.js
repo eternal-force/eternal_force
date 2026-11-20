@@ -210,6 +210,24 @@
   });
 })();
 
+// 下拉選單＋「其他」自訂輸入框(訓練項目表單的分類)：下拉的選擇寫入實際送出的文字欄位，選「其他」時才顯示輸入框。
+(function () {
+  document.querySelectorAll("select[data-custom-input]").forEach(function (select) {
+    var input = document.getElementById(select.getAttribute("data-custom-input"));
+    if (!input) return;
+    select.addEventListener("change", function () {
+      if (select.value === "__custom__") {
+        input.hidden = false;
+        input.value = "";
+        input.focus();
+      } else {
+        input.hidden = true;
+        input.value = select.value;
+      }
+    });
+  });
+})();
+
 // 登入後彈跳公告(REQ-044)：左右滑動檢視多則公告，勾選「今日不再顯示」後當天不再彈出這些公告。
 (function () {
   var dialog = document.getElementById("announcement-popup");

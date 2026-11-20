@@ -667,11 +667,13 @@ input:focus, textarea:focus, select:focus {
   margin-top: 10px;
 }
 
-.exercise-name-custom {
+.exercise-name-custom,
+.choice-custom-input {
   margin-top: 6px;
 }
 
-.exercise-name-custom[hidden] {
+.exercise-name-custom[hidden],
+.choice-custom-input[hidden] {
   display: none;
 }
 
