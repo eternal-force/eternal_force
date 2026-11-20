@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ account.username }}{% endblock %}
 {% block content %}
+{% from "accounts/_coach_checkboxes.html" import coach_checkboxes %}
 <div class="stack">
   <a class="back-link" href="{{ url_for('accounts.list_accounts') }}">&larr; 回帳號管理</a>
 
@@ -73,6 +74,28 @@
       <div style="margin-top:14px;">
         <div class="muted" style="font-size:0.78rem;">對應學生名冊</div>
         <div><a href="{{ url_for('students.student_detail', student_id=account.student.id) }}">{{ account.student.name }}</a></div>
+      </div>
+    {% endif %}
+
+    {% if account.role == 'student' %}
+      <div style="margin-top:14px;">
+        <div class="muted" style="font-size:0.78rem;">所屬教練</div>
+        <div>
+          {% if account.assigned_coaches %}
+            {% for c in account.assigned_coaches %}{{ c.name or c.username }}{% if c.status != 'active' %}(已停用){% endif %}{% if not loop.last %}、{% endif %}{% endfor %}
+          {% else %}
+            未指定
+          {% endif %}
+        </div>
+        <button type="button" class="btn btn-sm" style="margin-top:8px;" data-toggle-target="coach-form-{{ account.id }}">設定所屬教練</button>
+        <div id="coach-form-{{ account.id }}" class="inline-reveal" hidden>
+          <form method="post" action="{{ url_for('accounts.change_coaches', user_id=account.id) }}">
+            {{ delete_form.hidden_tag() }}
+            {{ coach_checkboxes(coach_choices, account.assigned_coaches|map(attribute='id')|list) }}
+            <p class="muted" style="font-size:0.8rem; margin:8px 0;">所屬教練與幫這位學生上過課的教練都看得到他；都不勾且沒有上課紀錄時，所有教練都看得到。</p>
+            <button type="submit" class="btn btn-sm btn-primary">儲存所屬教練</button>
+          </form>
+        </div>
       </div>
     {% endif %}
 

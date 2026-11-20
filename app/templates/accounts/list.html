@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}帳號管理{% endblock %}
 {% block content %}
+{% from "accounts/_coach_checkboxes.html" import coach_checkboxes %}
 <div class="stack">
   <div class="row-between">
     <h2 style="margin:0;">帳號管理</h2>
@@ -54,7 +55,12 @@
       {% for u in accounts %}
         <div class="record-row account-row">
           <div><span class="field-label-mobile">帳號</span>{{ u.username }}</div>
-          <div><span class="field-label-mobile">姓名</span>{{ u.name or '-' }}</div>
+          <div>
+            <span class="field-label-mobile">姓名</span>{{ u.name or '-' }}
+            {% if u.role == 'student' and u.assigned_coaches %}
+              <div class="muted" style="font-size:0.78rem;">教練：{{ u.assigned_coaches|map(attribute='name')|map('default', '-', true)|join('、') }}</div>
+            {% endif %}
+          </div>
           <div>
             <span class="field-label-mobile">角色</span>
             {{ role_label.get(u.role, u.role) }}
@@ -76,10 +82,34 @@
           <div class="record-row-actions">
             <a class="btn btn-sm" href="{{ url_for('accounts.view_account', user_id=u.id) }}">檢視</a>
             {% if u.status == 'pending' %}
-              <form method="post" action="{{ url_for('accounts.verify', user_id=u.id) }}">
-                {{ delete_form.hidden_tag() }}
-                <button type="submit" class="btn btn-sm btn-primary">驗證</button>
-              </form>
+              {% if u.role == 'student' %}
+                <button type="button" class="btn btn-sm btn-primary" data-open-dialog="verify-dialog-{{ u.id }}">驗證</button>
+                {% if u.assigned_coaches %}
+                  {% set preselected = u.assigned_coaches|map(attribute='id')|list %}
+                {% elif current_user.role == 'coach' %}
+                  {% set preselected = [current_user.id] %}
+                {% else %}
+                  {% set preselected = [] %}
+                {% endif %}
+                <dialog id="verify-dialog-{{ u.id }}" class="app-dialog">
+                  <form method="post" action="{{ url_for('accounts.verify', user_id=u.id) }}">
+                    {{ delete_form.hidden_tag() }}
+                    <input type="hidden" name="assign_coaches" value="1">
+                    <h3 style="margin:0 0 14px;">驗證帳號 — {{ u.username }}（{{ u.name or '-' }}）</h3>
+                    {{ coach_checkboxes(coaches, preselected) }}
+                    <p class="muted" style="font-size:0.8rem; margin:8px 0 0;">勾選後只有所屬教練(與日後幫他上課的教練)看得到這位學生；都不勾則所有教練都看得到。</p>
+                    <div class="btn-group" style="margin-top:16px; justify-content:flex-end;">
+                      <button type="button" class="btn btn-sm" data-close-dialog>取消</button>
+                      <button type="submit" class="btn btn-sm btn-primary">確認驗證</button>
+                    </div>
+                  </form>
+                </dialog>
+              {% else %}
+                <form method="post" action="{{ url_for('accounts.verify', user_id=u.id) }}">
+                  {{ delete_form.hidden_tag() }}
+                  <button type="submit" class="btn btn-sm btn-primary">驗證</button>
+                </form>
+              {% endif %}
               {% if current_user.role == 'admin' or u.role == 'student' %}
               <form method="post" action="{{ url_for('accounts.change_status', user_id=u.id) }}"
                     data-confirm="確定要拒絕並停用「{{ u.username }}」的註冊申請嗎？">

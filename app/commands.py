@@ -51,17 +51,48 @@ def register(app):
         per_coach = {}
         for _n, d in rows:
             if d["coach_name"]:
-                per_coach[d["coach_name"]] = per_coach.get(d["coach_name"], 0) + 1
-        for coach_name, count in sorted(per_coach.items()):
-            click.echo(f"教練「{coach_name}」：{count} 位學生(建立初始匯入上課紀錄)")
+                stats = per_coach.setdefault(d["coach_name"], {"total": 0, "opening": 0, "assigned": 0})
+                stats["total"] += 1
+                stats["opening"] += 1 if d["used"] > 0 else 0
+                stats["assigned"] += 1 if d["username"] else 0
+        for coach_name, stats in sorted(per_coach.items()):
+            click.echo(
+                f"教練「{coach_name}」：{stats['total']} 位學生"
+                f"(建立初始匯入上課紀錄 {stats['opening']} 位、設為帳號所屬教練 {stats['assigned']} 位)"
+            )
+        no_coach_account = [d["name"] for _n, d in rows if d["coach_name"] and d["used"] == 0 and not d["username"]]
+        if no_coach_account:
+            click.echo("已使用堂數為 0 且未建立帳號，目前教練無法生效(所有教練可見)：" + "、".join(no_coach_account))
         unassigned = [d["name"] for _n, d in rows if not d["coach_name"]]
         if unassigned:
-            click.echo("已使用堂數為 0、未分配教練(所有教練可見)：" + "、".join(unassigned))
+            click.echo("已使用堂數為 0、未填目前教練(所有教練可見)：" + "、".join(unassigned))
         if not commit:
             click.echo("目前只做檢查；確認無誤後加上 --commit 正式寫入")
             return
         importer.import_rows(rows)
         click.echo("匯入完成")
+
+    @app.cli.command("backfill-account-coaches")
+    @click.option("--commit", is_flag=True, help="確認無誤後正式寫入資料庫(未加則只列出將要設定的內容)")
+    def backfill_account_coaches(commit):
+        """依學生上課紀錄的教練，預設學生帳號的所屬教練(只新增、不移除既有設定)。"""
+        changes, skipped = services.backfill_account_coaches_from_classes(commit=commit)
+
+        def names(coaches):
+            return "、".join(c.name or c.username for c in coaches)
+
+        for account, coaches in changes:
+            click.echo(f"{account.username}（{account.name or '-'}）：新增所屬教練 {names(coaches)}")
+        for account, coaches in skipped:
+            click.echo(f"{account.username}（{account.name or '-'}）：略過已停用教練 {names(coaches)}")
+        if not changes:
+            click.echo("沒有需要補設的帳號")
+            return
+        click.echo(f"共 {len(changes)} 個學生帳號需補設所屬教練")
+        if not commit:
+            click.echo("目前只做檢查；確認無誤後加上 --commit 正式寫入")
+            return
+        click.echo("已寫入")
 
     @app.cli.command("create-admin")
     @click.option("--username", prompt=True)

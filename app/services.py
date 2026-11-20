@@ -21,6 +21,7 @@ from .models import (
     PurchaseRecord,
     Student,
     User,
+    account_coaches,
 )
 
 
@@ -107,13 +108,38 @@ def _validate_purchase_price(value):
     return price
 
 
-# ---------- 教練可見範圍(REQ-051) ----------
+# ---------- 教練可見範圍(REQ-051、REQ-055) ----------
+
+def _students_assigned_to(coach_id=None):
+    """有帳號被設定所屬教練的學生名冊 id；帶 coach_id 時只算設定給這位教練的。
+    排除 NULL，否則 NOT IN 遇到 NULL 會讓整個條件失效。"""
+    query = (
+        db.select(User.student_id)
+        .join(account_coaches, account_coaches.c.student_user_id == User.id)
+        .where(User.student_id.isnot(None))
+    )
+    if coach_id is not None:
+        query = query.where(account_coaches.c.coach_user_id == coach_id)
+    return query
+
+
+def _accounts_assigned_to(coach_id=None):
+    query = db.select(account_coaches.c.student_user_id)
+    if coach_id is not None:
+        query = query.where(account_coaches.c.coach_user_id == coach_id)
+    return query
+
 
 def _coach_student_filter(coach):
-    """教練可見的學生：自己上過課的，或尚未有任何教練上過課(未分配)的學生。"""
+    """教練可見的學生：帳號所屬教練有自己的、自己上過課的，
+    或尚未分配(沒有任何所屬教練、也沒有任何教練上過課)的學生。"""
     return db.or_(
+        Student.id.in_(_students_assigned_to(coach.id)),
         Student.class_records.any(ClassRecord.coach_id == coach.id),
-        ~Student.class_records.any(ClassRecord.coach_id.isnot(None)),
+        db.and_(
+            ~Student.class_records.any(ClassRecord.coach_id.isnot(None)),
+            ~Student.id.in_(_students_assigned_to()),
+        ),
     )
 
 
@@ -124,12 +150,20 @@ def visible_students_query(user):
     return query
 
 
+def student_coach_ids(student):
+    """這位學生關聯到的所有教練：上課紀錄的教練 + 各帳號的所屬教練。"""
+    ids = {c.coach_id for c in student.class_records if c.coach_id is not None}
+    for account in student.accounts:
+        ids.update(c.id for c in account.assigned_coaches)
+    return ids
+
+
 def can_access_student(user, student):
     if user.role == "admin":
         return True
     if user.role == "student":
         return user.student_id == student.id
-    coach_ids = {c.coach_id for c in student.class_records if c.coach_id is not None}
+    coach_ids = student_coach_ids(student)
     return not coach_ids or user.id in coach_ids
 
 
@@ -139,12 +173,22 @@ def ensure_student_access(user, student):
 
 
 def visible_accounts_query(user):
-    """教練只看得到學生帳號：尚未連結學生名冊的(例如待驗證)，或連結到自己可見學生的。"""
+    """教練只看得到學生帳號：尚未連結學生名冊的(例如待驗證)且未指定所屬教練或所屬教練有自己的，
+    或連結到自己可見學生的。"""
     query = User.query
     if user.role == "coach":
         query = query.filter(
             User.role == "student",
-            db.or_(User.student_id.is_(None), User.student.has(_coach_student_filter(user))),
+            db.or_(
+                db.and_(
+                    User.student_id.is_(None),
+                    db.or_(
+                        ~User.id.in_(_accounts_assigned_to()),
+                        User.id.in_(_accounts_assigned_to(user.id)),
+                    ),
+                ),
+                User.student.has(_coach_student_filter(user)),
+            ),
         )
     return query
 
@@ -154,7 +198,10 @@ def can_access_account(user, account):
         return True
     if account.role != "student":
         return False
-    return account.student is None or can_access_student(user, account.student)
+    if account.student is None:
+        coach_ids = {c.id for c in account.assigned_coaches}
+        return not coach_ids or user.id in coach_ids
+    return can_access_student(user, account.student)
 
 
 # ---------- Student ----------
@@ -780,7 +827,7 @@ def list_accounts(search=None, role=None, user=None):
         query = query.filter(db.or_(User.username.ilike(like), User.name.ilike(like)))
     if role in ("admin", "coach", "student"):
         query = query.filter(User.role == role)
-    return query.order_by(
+    return query.options(db.selectinload(User.assigned_coaches)).order_by(
         db.case((User.status == "pending", 0), else_=1), User.created_at.desc()
     ).all()
 
@@ -870,7 +917,78 @@ def create_student_from_registration(user):
     return student
 
 
-def verify_account(user):
+def coach_choices_for(account):
+    """所屬教練的勾選清單：啟用中的教練，加上已設定但目前停用的(保留顯示，避免編輯時被默默移除)。"""
+    coaches = list_active_coaches()
+    active_ids = {c.id for c in coaches}
+    coaches.extend(c for c in account.assigned_coaches if c.id not in active_ids)
+    return coaches
+
+
+def _apply_account_coaches(account, coach_ids):
+    if account.role != "student":
+        raise ValidationError("只有學生帳號可以設定所屬教練", field="coach_ids")
+    try:
+        wanted = {int(cid) for cid in coach_ids if str(cid).strip()}
+    except (TypeError, ValueError):
+        raise ValidationError("所屬教練不正確", field="coach_ids")
+    current = {c.id: c for c in account.assigned_coaches}
+    coaches = []
+    for coach_id in sorted(wanted):
+        coach = current.get(coach_id) or db.session.get(User, coach_id)
+        # 已設定的教練即使後來停用也可保留；新加入的必須是啟用中的教練。
+        if not coach or coach.role != "coach" or (coach_id not in current and coach.status != "active"):
+            raise ValidationError("所屬教練不正確", field="coach_ids")
+        coaches.append(coach)
+    account.assigned_coaches = coaches
+
+
+def set_account_coaches(account, coach_ids):
+    """設定學生帳號的所屬教練(可複選，空的代表未指定)。"""
+    _apply_account_coaches(account, coach_ids)
+    db.session.commit()
+    return account
+
+
+def backfill_account_coaches_from_classes(commit=False):
+    """把學生名冊上課紀錄中出現過的教練，補設為該名冊所連結學生帳號的所屬教練(REQ-057)。
+    只會新增、不會移除既有設定；只補啟用中的教練，停用的列入 skipped 供提示。
+    回傳 (changes, skipped)：changes=[(帳號, [新增的教練])]、skipped=[(帳號, [略過的停用教練])]。
+    commit=False 時只計算結果、不寫入。"""
+    accounts = (
+        User.query.filter(User.role == "student", User.student_id.isnot(None))
+        .options(
+            db.selectinload(User.assigned_coaches),
+            db.selectinload(User.student).selectinload(Student.class_records).joinedload(ClassRecord.coach),
+        )
+        .order_by(User.id)
+        .all()
+    )
+    changes, skipped = [], []
+    for account in accounts:
+        current = {c.id for c in account.assigned_coaches}
+        candidates = {}
+        for record in account.student.class_records:
+            coach = record.coach
+            if coach is not None and coach.role == "coach" and coach.id not in current:
+                candidates[coach.id] = coach
+        to_add = sorted((c for c in candidates.values() if c.status == "active"), key=lambda c: c.name or "")
+        inactive = sorted((c for c in candidates.values() if c.status != "active"), key=lambda c: c.name or "")
+        if to_add:
+            changes.append((account, to_add))
+            if commit:
+                account.assigned_coaches = list(account.assigned_coaches) + to_add
+        if inactive:
+            skipped.append((account, inactive))
+    if commit:
+        db.session.commit()
+    return changes, skipped
+
+
+def verify_account(user, coach_ids=None):
+    """coach_ids 為 None 表示不變更所屬教練；帶清單(可為空)則一併設定。"""
+    if coach_ids is not None and user.role == "student":
+        _apply_account_coaches(user, coach_ids)
     user.status = "active"
     if user.role == "student" and user.student_id is None:
         create_student_from_registration(user)
@@ -922,6 +1040,8 @@ def set_account_role(user, target_role):
     if user.role == "admin":
         raise ValidationError("管理者帳號的角色無法在此變更", field="role")
     user.role = target_role
+    if target_role == "coach":
+        user.assigned_coaches = []
     if target_role == "student" and user.student_id is None:
         create_student_from_registration(user)
     db.session.commit()

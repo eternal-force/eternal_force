@@ -35,6 +35,7 @@ def list_accounts():
         search=search,
         role=role,
         delete_form=DeleteConfirmForm(),
+        coaches=services.list_active_coaches(),
     )
 
 
@@ -47,6 +48,7 @@ def view_account(user_id):
         account=user,
         delete_form=DeleteConfirmForm(),
         password_form=SetPasswordForm(),
+        coach_choices=services.coach_choices_for(user) if user.role == "student" else [],
     )
 
 
@@ -56,9 +58,33 @@ def verify(user_id):
     user = _get_user_or_404(user_id)
     form = DeleteConfirmForm()
     if form.validate_on_submit():
-        services.verify_account(user)
-        flash(f"帳號「{user.username}」已驗證啟用。", "success")
+        # 驗證對話框會帶 assign_coaches，表示要一併設定所屬教練(全部不勾＝未指定)。
+        coach_ids = request.form.getlist("coach_ids") if request.form.get("assign_coaches") else None
+        try:
+            services.verify_account(user, coach_ids=coach_ids)
+            flash(f"帳號「{user.username}」已驗證啟用。", "success")
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
     return redirect(url_for("accounts.list_accounts"))
+
+
+@bp.route("/<int:user_id>/coaches", methods=["POST"])
+@roles_required("admin", "coach")
+def change_coaches(user_id):
+    user = _get_user_or_404(user_id)
+    if user.role != "student":
+        abort(400)
+    form = DeleteConfirmForm()
+    if form.validate_on_submit():
+        try:
+            services.set_account_coaches(user, request.form.getlist("coach_ids"))
+            flash(f"已更新帳號「{user.username}」的所屬教練。", "success")
+        except services.ValidationError as exc:
+            flash(exc.message, "danger")
+    if not services.can_access_account(current_user, user):
+        flash(f"學生帳號「{user.username}」已由其他教練負責，您已無法檢視。", "warning")
+        return redirect(url_for("accounts.list_accounts"))
+    return redirect(url_for("accounts.view_account", user_id=user_id))
 
 
 @bp.route("/<int:user_id>/status", methods=["POST"])

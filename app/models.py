@@ -10,6 +10,19 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
+# 學生帳號所屬的教練(REQ-055)：在帳號管理設定，可複選；與上課紀錄推導的教練範圍(REQ-051)合併計算。
+account_coaches = db.Table(
+    "account_coaches",
+    db.Column(
+        "student_user_id", db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    ),
+    db.Column(
+        "coach_user_id", db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True,
+        index=True,
+    ),
+)
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
@@ -45,6 +58,15 @@ class User(UserMixin, db.Model):
     )
     student = db.relationship(
         "Student", foreign_keys=[student_id], backref=db.backref("accounts", order_by="User.id")
+    )
+    # 學生帳號的所屬教練；反向 assigned_students 為教練負責的學生帳號。刪除任一方時對應列會一併移除。
+    assigned_coaches = db.relationship(
+        "User",
+        secondary=account_coaches,
+        primaryjoin=lambda: User.id == account_coaches.c.student_user_id,
+        secondaryjoin=lambda: User.id == account_coaches.c.coach_user_id,
+        order_by=lambda: User.name,
+        backref=db.backref("assigned_students", order_by=lambda: User.id),
     )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow, nullable=False)
     # 最後一次成功登入的時間(UTC)；從未登入為 NULL。

@@ -1,0 +1,14 @@
+{# 學生帳號的所屬教練勾選清單(REQ-055)，送出欄位名稱為 coach_ids，可複選。 #}
+{% macro coach_checkboxes(coaches, selected_ids) %}
+<fieldset class="checkbox-group">
+  <legend>所屬教練(可複選)</legend>
+  {% for c in coaches %}
+    <label class="checkbox-label">
+      <input type="checkbox" name="coach_ids" value="{{ c.id }}" {% if c.id in selected_ids %}checked{% endif %}>
+      {{ c.name or c.username }}{% if c.status != 'active' %}(已停用){% endif %}
+    </label>
+  {% else %}
+    <p class="muted" style="margin:0;">目前沒有啟用中的教練帳號。</p>
+  {% endfor %}
+</fieldset>
+{% endmacro %}

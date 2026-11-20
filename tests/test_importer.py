@@ -213,3 +213,62 @@ def test_cli_rejects_whole_batch_on_error(app, coach_user, db, tmp_path):
     result = app.test_cli_runner().invoke(args=["import-students", str(path), "--commit"])
     assert result.exit_code != 0
     assert Student.query.count() == 0
+
+
+def test_import_assigns_coach_to_created_account(app, coach_user, db, tmp_path):
+    """REQ-056：有填目前教練且有建立帳號時，目前教練自動設為帳號的所屬教練(已使用 0 堂也一樣)。"""
+    from app import services
+
+    coach_b = User(username="coach2", role="coach", status="active", name="教練B")
+    coach_b.set_password("password123")
+    db.session.add(coach_b)
+    db.session.commit()
+    path = tmp_path / "t.xlsx"
+    _fill(
+        path,
+        [
+            _row(),
+            _row(name="新學生", phone="0922222222", used=0, last_class_date=None),
+            _row(name="沒教練", phone="0933333333", used=0, last_class_date=None, coach=None),
+            _row(name="無帳號", phone=None, phone_type=None, used=0, last_class_date=None),
+        ],
+    )
+    rows, errors = importer.read_rows(path)
+    assert errors == []
+    importer.import_rows(rows)
+
+    chen = User.query.filter_by(username="0912345678").one()
+    fresh = User.query.filter_by(username="0922222222").one()
+    no_coach = User.query.filter_by(username="0933333333").one()
+    assert [c.id for c in chen.assigned_coaches] == [coach_user.id]
+    assert [c.id for c in fresh.assigned_coaches] == [coach_user.id]
+    assert no_coach.assigned_coaches == []
+    # 已使用 0 堂不建立初始上課紀錄，但因為有所屬教練，只有教練A看得到
+    assert fresh.student.class_records == []
+    assert services.can_access_student(coach_user, fresh.student)
+    assert not services.can_access_student(coach_b, fresh.student)
+    assert services.can_access_student(coach_b, no_coach.student)
+    assert services.can_access_student(coach_b, Student.query.filter_by(name="無帳號").one())
+
+
+def test_zero_used_row_with_unknown_coach_is_rejected(app, coach_user, tmp_path):
+    path = tmp_path / "t.xlsx"
+    _fill(path, [_row(used=0, last_class_date=None, coach="不存在")])
+    rows, errors = importer.read_rows(path)
+    assert rows == [] and "找不到啟用中的教練" in errors[0][1]
+
+
+def test_cli_summary_reports_coach_assignment(app, coach_user, db, tmp_path):
+    path = tmp_path / "t.xlsx"
+    _fill(
+        path,
+        [
+            _row(),
+            _row(name="新學生", phone="0922222222", used=0, last_class_date=None),
+            _row(name="無帳號", phone=None, phone_type=None, used=0, last_class_date=None),
+        ],
+    )
+    result = app.test_cli_runner().invoke(args=["import-students", str(path)])
+    assert result.exit_code == 0, result.output
+    assert "教練「教練A」：3 位學生(建立初始匯入上課紀錄 1 位、設為帳號所屬教練 2 位)" in result.output
+    assert "目前教練無法生效(所有教練可見)：無帳號" in result.output

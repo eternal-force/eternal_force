@@ -37,7 +37,7 @@ COLUMNS = [
     ("price", "購買金額", False, 12, "選填，數字，最多 1,000,000"),
     ("used", "已使用堂數", True, 11, "0 到購買堂數之間的整數；沒用過填 0"),
     ("last_class_date", "最後上課日期", False, 13, "已使用堂數大於 0 時必填；日期格式 YYYY-MM-DD，不可早於購買日期、不可晚於今天"),
-    ("coach", "目前教練", False, 12, "已使用堂數大於 0 時必填；請填系統內啟用中教練的姓名(可用下拉選單)"),
+    ("coach", "目前教練", False, 12, "已使用堂數大於 0 時必填；請填系統內啟用中教練的姓名(可用下拉選單)。有建立登入帳號時會一併設為該帳號的所屬教練"),
     ("notes", "備註", False, 24, "選填，寫入學生備註"),
 ]
 REMAINING_HEADER = "剩餘堂數（自動計算，匯入時忽略）"
@@ -162,7 +162,8 @@ def build_template(path):
         ("3. 日期請用 YYYY-MM-DD；電話類型、性別與目前教練請用下拉選單。", False),
         ("4. 已使用堂數記為購課紀錄的「期初已扣」堂數；匯入後已上堂數為 0，總購買與剩餘堂數＝購買堂數－已使用堂數。", False),
         ("5. 已使用堂數大於 0 的學生，最後上課日期與目前教練為必填：系統會建立一筆備註「初始匯入」的上課紀錄(只有上課日期與教練、沒有訓練項目、不計入已上堂數)，該學生只有這位教練與管理者看得到。", False),
-        ("6. 已使用堂數為 0 的學生不建立上課紀錄(最後上課日期與目前教練會被忽略)，在有教練幫他新增上課紀錄之前，所有教練都看得到。", False),
+        ("6. 已使用堂數為 0 的學生不建立上課紀錄(最後上課日期會被忽略)；目前教練可留空，留空則在有教練幫他新增上課紀錄之前，所有教練都看得到。", False),
+        ("   有填目前教練、且有建立登入帳號(見第 9 點)的學生，目前教練會自動設為該帳號的「所屬教練」，之後可在帳號管理修改；已使用堂數為 0 的學生也一樣只有這位教練與管理者看得到。", False),
         ("7. 目前教練請填系統內啟用中教練的姓名；教練帳號需先建立，範本下拉選單為產生範本當下的教練名單。", False),
         ("8. 學生姓名不可與系統內既有學生、或本檔其他列重複。", False),
         ("9. 有填手機的學生會一併建立登入帳號：帳號與初始密碼皆為手機號碼，首次登入須自行修改密碼；沒填手機(或填市話)的學生不建立帳號。手機不可與系統內既有帳號、或本檔其他列重複。", False),
@@ -224,19 +225,23 @@ def _to_int(value, label, low, high):
 
 
 def _parse_opening_class(raw, used, purchase_date, coaches):
-    """回傳 (最後上課日期, 教練 id, 教練姓名)；已使用堂數為 0 時不建立初始上課紀錄，全部回傳 None。"""
-    if used == 0:
-        return None, None, None
-    last_class_date = _to_date(raw.get("last_class_date"), "最後上課日期")
-    if last_class_date is None:
-        raise services.ValidationError("已使用堂數大於 0 時，最後上課日期為必填")
-    if last_class_date < purchase_date:
-        raise services.ValidationError("最後上課日期不能早於購買日期")
-    if last_class_date > date.today():
-        raise services.ValidationError("最後上課日期不能晚於今天")
+    """回傳 (最後上課日期, 教練 id, 教練姓名)。
+    已使用堂數為 0 時不建立初始上課紀錄(最後上課日期回傳 None)，但有填目前教練仍會驗證並回傳，
+    供匯入時設為帳號的所屬教練(REQ-056)；沒填則教練也回傳 None。"""
+    last_class_date = None
+    if used > 0:
+        last_class_date = _to_date(raw.get("last_class_date"), "最後上課日期")
+        if last_class_date is None:
+            raise services.ValidationError("已使用堂數大於 0 時，最後上課日期為必填")
+        if last_class_date < purchase_date:
+            raise services.ValidationError("最後上課日期不能早於購買日期")
+        if last_class_date > date.today():
+            raise services.ValidationError("最後上課日期不能晚於今天")
     coach_name = _text(raw.get("coach"))
     if not coach_name:
-        raise services.ValidationError("已使用堂數大於 0 時，目前教練為必填")
+        if used > 0:
+            raise services.ValidationError("已使用堂數大於 0 時，目前教練為必填")
+        return None, None, None
     coach_ids = coaches.get(coach_name, [])
     if not coach_ids:
         raise services.ValidationError(f"系統內找不到啟用中的教練「{coach_name}」")
@@ -370,7 +375,7 @@ def import_rows(rows):
                     notes="期初匯入",
                 )
             )
-            if data["coach_id"]:
+            if data["used"] > 0:
                 student.class_records.append(
                     ClassRecord(
                         class_date=data["last_class_date"],
@@ -396,6 +401,8 @@ def import_rows(rows):
                     student=student,
                 )
                 user.set_password(data["username"])
+                if data["coach_id"]:
+                    user.assigned_coaches = [db.session.get(User, data["coach_id"])]
                 db.session.add(user)
         db.session.commit()
     except Exception:
