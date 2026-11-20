@@ -667,6 +667,14 @@ input:focus, textarea:focus, select:focus {
   margin-top: 10px;
 }
 
+.exercise-name-custom {
+  margin-top: 6px;
+}
+
+.exercise-name-custom[hidden] {
+  display: none;
+}
+
 .exercise-entry-row[data-collapsed="true"] .exercise-entry-body {
   display: none;
 }

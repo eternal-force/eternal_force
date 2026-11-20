@@ -22,19 +22,24 @@
       </div>
       <div>
         <span class="field-label-mobile">訓練項目</span>
+        {% set catalog_names = catalog_map.get(row.category, []) %}
+        {% set is_custom_name = row.name and row.name not in catalog_names %}
+        <select class="exercise-name-select">
+          <option value="">{% if row.category %}請選擇訓練項目{% else %}請先選擇分類{% endif %}</option>
+          {% for n in catalog_names %}
+            <option value="{{ n }}" {% if row.name == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+          <option value="__custom__" {% if is_custom_name %}selected{% endif %}>其他（自行輸入）</option>
+        </select>
         <input
           type="text"
           name="exercise_name"
+          class="exercise-name-custom"
           value="{{ row.name }}"
-          {% if row_index is not none %}list="exercise-name-options-{{ row_index }}"{% endif %}
-          placeholder="選擇分類後可帶出項目，或輸入自訂項目"
+          placeholder="輸入自訂訓練項目"
           autocomplete="off"
+          {% if not is_custom_name %}hidden{% endif %}
         >
-        <datalist {% if row_index is not none %}id="exercise-name-options-{{ row_index }}"{% endif %}>
-          {% for n in catalog_map.get(row.category, []) %}
-            <option value="{{ n }}">
-          {% endfor %}
-        </datalist>
       </div>
     </div>
     <div class="form-grid cols-3" style="margin-top:8px;">

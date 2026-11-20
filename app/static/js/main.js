@@ -84,19 +84,45 @@
     }
   }
 
-  var nextRowId = 0;
+  var CUSTOM_VALUE = "__custom__";
 
-  function refreshDatalist(row) {
-    var select = row.querySelector(".exercise-category-select");
-    var datalist = row.querySelector("datalist");
-    if (!select || !datalist) return;
-    var names = catalogMap[select.value] || [];
-    datalist.innerHTML = "";
+  function addOption(select, value, text) {
+    var option = document.createElement("option");
+    option.value = value;
+    option.textContent = text;
+    select.appendChild(option);
+  }
+
+  // 依分類重建訓練項目下拉選單，最後一項固定為「其他（自行輸入）」
+  function refreshNameSelect(row) {
+    var categorySelect = row.querySelector(".exercise-category-select");
+    var nameSelect = row.querySelector(".exercise-name-select");
+    if (!categorySelect || !nameSelect) return;
+    var names = catalogMap[categorySelect.value] || [];
+    nameSelect.innerHTML = "";
+    addOption(nameSelect, "", categorySelect.value ? "請選擇訓練項目" : "請先選擇分類");
     names.forEach(function (name) {
-      var option = document.createElement("option");
-      option.value = name;
-      datalist.appendChild(option);
+      addOption(nameSelect, name, name);
     });
+    addOption(nameSelect, CUSTOM_VALUE, "其他（自行輸入）");
+    nameSelect.value = "";
+  }
+
+  // 下拉選單的選擇寫入實際送出的 exercise_name 欄位；選「其他」時才顯示自訂輸入框
+  function syncNameInput(row, focusCustom) {
+    var nameSelect = row.querySelector(".exercise-name-select");
+    var input = row.querySelector("input[name='exercise_name']");
+    if (!nameSelect || !input) return;
+    if (nameSelect.value === CUSTOM_VALUE) {
+      input.hidden = false;
+      if (focusCustom) {
+        input.value = "";
+        input.focus();
+      }
+    } else {
+      input.hidden = true;
+      input.value = nameSelect.value;
+    }
   }
 
   function rowSummary(row) {
@@ -129,22 +155,20 @@
 
   function bindRow(row) {
     var select = row.querySelector(".exercise-category-select");
-    var input = row.querySelector("input[name='exercise_name']");
-    var datalist = row.querySelector("datalist");
+    var nameSelect = row.querySelector(".exercise-name-select");
     var removeBtn = row.querySelector(".exercise-row-remove");
     var collapseBtn = row.querySelector(".exercise-row-collapse");
     var toggleBtn = row.querySelector(".exercise-row-toggle");
 
-    if (datalist && !datalist.id) {
-      datalist.id = "exercise-name-options-js-" + nextRowId;
-      nextRowId += 1;
-    }
-    if (input && datalist) {
-      input.setAttribute("list", datalist.id);
-    }
     if (select) {
       select.addEventListener("change", function () {
-        refreshDatalist(row);
+        refreshNameSelect(row);
+        syncNameInput(row, false);
+      });
+    }
+    if (nameSelect) {
+      nameSelect.addEventListener("change", function () {
+        syncNameInput(row, true);
       });
     }
     if (removeBtn) {
