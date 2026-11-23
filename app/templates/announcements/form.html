@@ -56,7 +56,7 @@
             <p class="muted" style="margin:4px 0;">選擇新圖片會取代目前的圖片。</p>
           {% endif %}
           {{ form.image(accept="image/jpeg,image/png,image/webp") }}
-          <p class="muted" style="margin:4px 0 0;">選填，限 JPG、PNG、WebP，最大 2MB。</p>
+          <p class="muted" style="margin:4px 0 0;">選填，限 JPG、PNG、WebP，最大 10MB。</p>
           {% for e in form.image.errors %}<p class="field-error">{{ e }}</p>{% endfor %}
         </div>
 

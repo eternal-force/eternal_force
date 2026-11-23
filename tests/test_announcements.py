@@ -153,11 +153,11 @@ def test_rejects_non_image_upload(logged_in_client, db):
     assert Announcement.query.count() == 0
 
 
-def test_rejects_image_over_2mb(logged_in_client, db):
-    big = PNG_BYTES + b"\x00" * (2 * 1024 * 1024)
+def test_rejects_image_over_10mb(logged_in_client, db):
+    big = PNG_BYTES + b"\x00" * (10 * 1024 * 1024)
     data = _form(logged_in_client, "/announcements/new", image=(io.BytesIO(big), "big.png"))
     body = _post(logged_in_client, "/announcements/new", data).get_data(as_text=True)
-    assert "圖片大小不能超過 2MB" in body
+    assert "圖片大小不能超過 10MB" in body
     assert Announcement.query.count() == 0
 
 

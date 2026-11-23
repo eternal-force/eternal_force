@@ -1074,7 +1074,7 @@ TAIPEI_TZ = timezone(timedelta(hours=8), "Asia/Taipei")
 
 ANNOUNCEMENT_TITLE_MAX_LENGTH = 100
 ANNOUNCEMENT_CONTENT_MAX_LENGTH = 2000
-ANNOUNCEMENT_IMAGE_MAX_BYTES = 2 * 1024 * 1024
+ANNOUNCEMENT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 ANNOUNCEMENT_STATUS_LABELS = {"scheduled": "未上架", "live": "上架中", "expired": "已下架"}
 _AUDIENCE_FIELDS = ("show_to_student", "show_to_coach", "show_to_admin")
 
@@ -1203,7 +1203,7 @@ def _detect_image_mime(data):
 
 def _validate_announcement_image(data):
     if len(data) > ANNOUNCEMENT_IMAGE_MAX_BYTES:
-        raise ValidationError("圖片大小不能超過 2MB", field="image")
+        raise ValidationError("圖片大小不能超過 10MB", field="image")
     mime = _detect_image_mime(data)
     if mime is None:
         raise ValidationError("圖片格式需為 JPG、PNG 或 WebP", field="image")
