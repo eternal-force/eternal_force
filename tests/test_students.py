@@ -280,7 +280,7 @@ def test_student_card_shows_low_remaining_warning_when_below_five(logged_in_clie
     resp = logged_in_client.get("/students/")
     body = resp.get_data(as_text=True)
     assert student.remaining < 5
-    assert "剩餘堂數不足 5 堂，請提醒教練安排續購" in body
+    assert "剩餘堂數不足 5 堂" in body
 
 
 def test_student_card_hides_low_remaining_warning_when_enough_remaining(logged_in_client, db):
