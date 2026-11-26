@@ -132,13 +132,20 @@ def _accounts_assigned_to(coach_id=None):
 
 def _coach_student_filter(coach):
     """教練可見的學生：帳號所屬教練有自己的、自己上過課的，
-    或尚未分配(沒有任何所屬教練、也沒有任何教練上過課)的學生。"""
+    或尚未分配(沒有任何所屬教練、也沒有任何教練上過課)的學生。
+    轉一對二後停用保留的原卡片已不連結帳號，改以 former_account_id 沿用原帳號的所屬教練，
+    否則會被當成未分配而讓所有教練都看得到。"""
     return db.or_(
         Student.id.in_(_students_assigned_to(coach.id)),
+        Student.former_account_id.in_(_accounts_assigned_to(coach.id)),
         Student.class_records.any(ClassRecord.coach_id == coach.id),
         db.and_(
             ~Student.class_records.any(ClassRecord.coach_id.isnot(None)),
             ~Student.id.in_(_students_assigned_to()),
+            db.or_(
+                Student.former_account_id.is_(None),
+                ~Student.former_account_id.in_(_accounts_assigned_to()),
+            ),
         ),
     )
 
@@ -151,9 +158,15 @@ def visible_students_query(user):
 
 
 def student_coach_ids(student):
-    """這位學生關聯到的所有教練：上課紀錄的教練 + 各帳號的所屬教練。"""
+    """這位學生關聯到的所有教練：上課紀錄的教練 + 各帳號的所屬教練
+    (轉一對二後停用的原卡片，算原帳號的所屬教練)。"""
     ids = {c.coach_id for c in student.class_records if c.coach_id is not None}
-    for account in student.accounts:
+    accounts = list(student.accounts)
+    if student.former_account_id is not None:
+        former = db.session.get(User, student.former_account_id)
+        if former is not None:
+            accounts.append(former)
+    for account in accounts:
         ids.update(c.id for c in account.assigned_coaches)
     return ids
 

@@ -154,6 +154,29 @@ def test_coach_can_pair_and_sees_new_card(client, db, coach_user, alice, bob):
     assert "王小明、陳大華" in html and "alice、bob" in html
 
 
+def test_retired_card_visible_only_to_former_accounts_coach(client, db, coach_user, alice, bob):
+    """轉一對二後停用的原卡片不連結帳號，仍沿用原帳號的所屬教練，不能變成所有教練都看得到的未分配學生。"""
+    other_coach = User(username="coach2", role="coach", status="active", name="教練B")
+    other_coach.set_password(COACH_PASSWORD)
+    db.session.add(other_coach)
+    bob.assigned_coaches = [coach_user]
+    db.session.commit()
+    bob_old = bob.student
+
+    services.pair_students(alice.student, bob)
+    assert bob_old.status == "inactive" and bob_old.accounts == []
+
+    assert services.can_access_student(coach_user, bob_old)
+    assert not services.can_access_student(other_coach, bob_old)
+    assert bob_old in services.visible_students_query(coach_user).all()
+    assert bob_old not in services.visible_students_query(other_coach).all()
+
+    login(client, "coach2", COACH_PASSWORD)
+    assert client.get(f"/students/{bob_old.id}").status_code == 403
+    html = client.get("/students/?status=inactive").get_data(as_text=True)
+    assert f"/students/{bob_old.id}\"" not in html
+
+
 def test_student_cannot_pair_or_split(client, db, alice, bob):
     login(client, "alice", STUDENT_PASSWORD)
     assert client.get(f"/students/{alice.student_id}/pair").status_code == 403
