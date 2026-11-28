@@ -8,7 +8,7 @@ from .. import list_filters, services
 from ..auth.decorators import roles_required
 from ..extensions import db
 from ..forms import DeleteConfirmForm, StudentForm
-from ..models import ClassRecord, Student, User
+from ..models import ClassRecord, PurchaseRecord, Student, User
 
 bp = Blueprint("students", __name__, url_prefix="/students")
 
@@ -42,7 +42,32 @@ def list_students():
         query = query.filter(Student.status == status)
     if class_type in services.CLASS_TYPE_LABELS:
         query = query.filter(Student.class_type == class_type)
-    query = query.order_by(Student.created_at.desc())
+    # 剩餘堂數不足 5 堂(含超上)的學生優先呈現，依剩餘堂數由少到多；其餘依建立時間新到舊。
+    # 在 SQL 計算剩餘堂數(與 Student.remaining 相同邏輯)，分頁後各頁排序才會一致。
+    purchased = (
+        db.select(
+            db.func.coalesce(
+                db.func.sum(PurchaseRecord.quantity - PurchaseRecord.opening_deduction), 0
+            )
+        )
+        .where(PurchaseRecord.student_id == Student.id)
+        .correlate(Student)
+        .scalar_subquery()
+    )
+    attended = (
+        db.select(db.func.count(ClassRecord.id))
+        .where(ClassRecord.student_id == Student.id, ClassRecord.is_opening.is_(False))
+        .correlate(Student)
+        .scalar_subquery()
+    )
+    remaining = purchased - attended
+    is_low = remaining < 5
+    query = query.order_by(
+        db.case((is_low, 0), else_=1),
+        db.case((is_low, remaining), else_=0),
+        Student.created_at.desc(),
+        Student.id.desc(),
+    )
 
     pagination = query.paginate(page=page, per_page=12, error_out=False)
 

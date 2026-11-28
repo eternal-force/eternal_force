@@ -582,3 +582,29 @@ def test_student_role_cannot_edit_other_students_data(student_client, db):
 def test_coach_has_same_access_as_admin(coach_client):
     resp = create_student(coach_client, name="教練建立的學生")
     assert "已建立" in resp.get_data(as_text=True)
+
+
+def test_student_list_prioritizes_students_with_fewer_than_five_remaining(logged_in_client, db):
+    from app.models import ClassRecord, PurchaseRecord, Student
+    from datetime import time
+
+    plenty = Student(name="充足學生")
+    low = Student(name="快用完學生")
+    over = Student(name="超上學生")
+    db.session.add_all([plenty, low, over])
+    db.session.flush()
+    db.session.add_all([
+        PurchaseRecord(student_id=plenty.id, purchase_date=date.today(), quantity=20),
+        PurchaseRecord(student_id=low.id, purchase_date=date.today(), quantity=10, opening_deduction=7),
+    ])
+    db.session.add(ClassRecord(student_id=over.id, class_date=date.today(), class_time=time(10, 0)))
+    db.session.commit()
+    # 最新建立但堂數充足的學生，仍要排在不足 5 堂的學生之後
+    newest = Student(name="最新充足學生")
+    db.session.add(newest)
+    db.session.flush()
+    db.session.add(PurchaseRecord(student_id=newest.id, purchase_date=date.today(), quantity=8))
+    db.session.commit()
+
+    body = logged_in_client.get("/students/").get_data(as_text=True)
+    assert body.index("超上學生") < body.index("快用完學生") < body.index("最新充足學生")
